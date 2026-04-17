@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.7.7 Oficial Auto';
+const appVersion = 'V2.0.7.8 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -1308,30 +1308,10 @@ async function saveManualWarOverride(selection, row, payload={}){
 }
 
 async function promptWarOverride(row, context='war-auto'){
-  if(!isAdminApp()) return;
-  const selection = context === 'war-ranking' ? getWarRankingSelection() : getWarAutoSelection();
-  const dayKey = getCurrentWarDayKey();
-  const currentDayValue = Number(row?.[dayKey] || 0);
-  const currentPointsValue = Number(row?.points || row?.livePoints || 0);
-  const attacksRaw = window.prompt(`Ajuste manual de ataques para ${row?.name || 'membro'} (${String(dayKey).toUpperCase()} 0-4)`, String(currentDayValue));
-  if(attacksRaw === null) return;
-  const pointsRaw = window.prompt(`Ajuste manual de pts (fame) para ${row?.name || 'membro'}`, String(currentPointsValue));
-  if(pointsRaw === null) return;
-  const attacks = Math.max(0, Math.min(4, Number(attacksRaw || 0) || 0));
-  const points = Math.max(0, Number(String(pointsRaw || '0').replace(/\./g,'').replace(',','.')) || 0);
-  const ok = await saveManualWarOverride(selection, row, { dayKey, attacks, points });
-  if(ok){
-    showToast('Ajuste manual salvo.');
-    if(context === 'war-ranking'){
-      await renderWarRankingView(true);
-      await renderWarAutoView({ force:true, silent:true });
-    }else{
-      await renderWarAutoView({ force:true, silent:true });
-      await renderWarRankingView(true);
-    }
-  }else{
-    showToast('Não foi possível salvar o ajuste manual.', 'error');
-  }
+  if(!isAdminApp() || context !== 'war-auto') return;
+  const selection = getWarAutoSelection();
+  const dayKey = getCurrentWarDayKey() || 'thu';
+  openWarAdjustModal(row, selection, dayKey);
 }
 window.promptWarOverride = promptWarOverride;
 
@@ -1514,6 +1494,121 @@ function renderWarAutoPeriodControls(){
 const WAR_AUTO_MIRROR_CACHE = new Map();
 let WAR_AUTO_MIRROR_LAST_KEY = '';
 
+
+function mergeWarRowsKeepingBest(currentRows = [], historyRows = []){
+  const map = new Map();
+  const put = (row={}) => {
+    const key = normalizePlayerTag(row.playerTag || row.tag || '') || normalizeMatchText(row.name || '');
+    if(!key) return;
+    const existing = map.get(key) || {};
+    const merged = {
+      ...existing,
+      ...row,
+      name: row.name || existing.name || '',
+      playerTag: row.playerTag || row.tag || existing.playerTag || existing.tag || '',
+      tag: row.playerTag || row.tag || existing.tag || existing.playerTag || '',
+      role: row.role || existing.role || 'Membro',
+      thu: Math.max(Number(existing.thu || 0), Number(row.thu || 0)),
+      fri: Math.max(Number(existing.fri || 0), Number(row.fri || 0)),
+      sat: Math.max(Number(existing.sat || 0), Number(row.sat || 0)),
+      sun: Math.max(Number(existing.sun || 0), Number(row.sun || 0)),
+      points: Math.max(Number(existing.points || existing.livePoints || 0), Number(row.points || row.livePoints || 0))
+    };
+    merged.total = Math.max(Number(existing.total || 0), Number(row.total || 0), Number(merged.thu + merged.fri + merged.sat + merged.sun));
+    map.set(key, merged);
+  };
+  historyRows.forEach(put);
+  currentRows.forEach(put);
+  return Array.from(map.values());
+}
+
+function ensureWarAdjustModal(){
+  let modal = document.getElementById('warAdjustModal');
+  if(modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'warAdjustModal';
+  modal.className = 'war-adjust-modal hidden';
+  modal.innerHTML = `
+    <div class="war-adjust-backdrop" data-war-adjust-close="1"></div>
+    <div class="war-adjust-dialog">
+      <div class="war-adjust-head">
+        <div>
+          <small>AJUSTE MANUAL</small>
+          <h3 id="warAdjustTitle">Atualizar membro</h3>
+        </div>
+        <button type="button" class="war-adjust-close" data-war-adjust-close="1">×</button>
+      </div>
+      <div class="war-adjust-body">
+        <label class="war-adjust-label">
+          <span>Ataques do dia</span>
+          <select id="warAdjustAttacks" class="war-adjust-input">
+            <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+          </select>
+        </label>
+        <label class="war-adjust-label">
+          <span>Pontos da guerra (fame)</span>
+          <input id="warAdjustPoints" class="war-adjust-input" type="number" inputmode="numeric" pattern="[0-9]*" min="0" step="1" placeholder="Ex: 400" />
+        </label>
+        <div class="war-adjust-meta" id="warAdjustMeta"></div>
+      </div>
+      <div class="war-adjust-actions">
+        <button type="button" class="ghost" data-war-adjust-close="1">Cancelar</button>
+        <button type="button" class="primary" id="warAdjustSaveBtn">Salvar ajuste</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', async (e) => {
+    if(e.target.closest('[data-war-adjust-close="1"]')){
+      closeWarAdjustModal();
+      return;
+    }
+    const saveBtn = e.target.closest('#warAdjustSaveBtn');
+    if(saveBtn){
+      const payload = modal._payload || null;
+      if(!payload) return;
+      saveBtn.disabled = true;
+      try{
+        const attacks = Math.max(0, Math.min(4, Number(document.getElementById('warAdjustAttacks')?.value || 0)));
+        const points = Math.max(0, Number(document.getElementById('warAdjustPoints')?.value || 0));
+        const ok = await saveManualWarOverride(payload.selection, payload.row, { dayKey: payload.dayKey, attacks, points });
+        if(ok){
+          closeWarAdjustModal();
+          showToast('Ajuste manual salvo.');
+          await renderWarAutoView({ force:true, silent:true });
+          await renderWarRankingView(true);
+        }else{
+          showToast('Não foi possível salvar o ajuste manual.', 'error');
+        }
+      }finally{
+        saveBtn.disabled = false;
+      }
+    }
+  });
+  return modal;
+}
+
+function closeWarAdjustModal(){
+  const modal = document.getElementById('warAdjustModal');
+  if(!modal) return;
+  modal.classList.add('hidden');
+  modal._payload = null;
+}
+
+function openWarAdjustModal(row, selection, dayKey){
+  const modal = ensureWarAdjustModal();
+  modal._payload = { row, selection, dayKey };
+  const title = modal.querySelector('#warAdjustTitle');
+  const attacks = modal.querySelector('#warAdjustAttacks');
+  const points = modal.querySelector('#warAdjustPoints');
+  const meta = modal.querySelector('#warAdjustMeta');
+  if(title) title.textContent = row?.name || 'Atualizar membro';
+  if(attacks) attacks.value = String(Math.max(0, Math.min(4, Number(row?.[dayKey] || 0))));
+  if(points) points.value = String(Number(row?.points || row?.livePoints || 0) || 0);
+  if(meta) meta.textContent = `Dia atual da guerra: ${String(dayKey || '').toUpperCase()} • ajuste visível só para admin`;
+  modal.classList.remove('hidden');
+}
+
 function renderWarAutoDots(count=0, max=4){
   return Array.from({length:max}, (_, idx) => `<span class="war-auto-dot ${idx < Number(count || 0) ? 'filled' : 'missed'}"></span>`).join('');
 }
@@ -1641,7 +1736,8 @@ async function renderWarAutoView(options = {}){
         const race = await fetchClashCurrentRiverRace(window.TOPBRS_FIREBASE_CONFIG?.clashClanTag || '#QRG9QQ', { force: Boolean(options.force) });
         const liveRows = buildWarAutoApiRowsFromRace(race, selection);
         if(Array.isArray(liveRows) && liveRows.length){
-          rows = liveRows;
+          const historyBeforeSave = await fetchWarHistoryRows(selection.month, selection.week);
+          rows = mergeWarRowsKeepingBest(liveRows, historyBeforeSave);
           liveEnabled = true;
           source = 'api-live';
           await saveCurrentWarToFirestore(rows, selection, { source: 'api-live', reason: options.force ? 'manual-refresh' : 'auto-refresh' });
@@ -1766,7 +1862,7 @@ async function renderWarRankingView(force=false){
     }
     ui.warRankingBoard.innerHTML = `<div class="war-ranking-table"><div class="war-ranking-head"><div>Pos</div><div>Nick</div><div>Pts</div><div>Atk</div></div>${rows.map((row, index) => {
           const self = memberMatchesCurrentUser(row.linkedMember || row);
-          return `<div class="war-ranking-row ${index===0?'top-1':index===1?'top-2':index===2?'top-3':''} ${self?'is-self':''}"><div class="pos">#${index + 1}</div><div class="nick">${esc(row.linkedMember?.name || row.name || 'Sem nome')} ${self ? '<span class="self-badge">VOCÊ</span>' : ''}${isAdminApp() ? ` <button class="war-ranking-adjust-btn" type="button" data-war-ranking-adjust='${esc(JSON.stringify({name: row.name || '', playerTag: row.playerTag || '', role: row.role || row.linkedMember?.role || 'Membro', thu: Number(row.thu||0), fri: Number(row.fri||0), sat: Number(row.sat||0), sun: Number(row.sun||0), total: Number(row.total||0), points: Number(row.points||0)}))}'>Ajustar</button>` : ''}</div><div>${Number(row.points || 0).toLocaleString('pt-BR')}</div><div>${Number(row.total || 0)}</div></div>`;
+          return `<div class="war-ranking-row ${index===0?'top-1':index===1?'top-2':index===2?'top-3':''} ${self?'is-self':''}"><div class="pos">#${index + 1}</div><div class="nick">${esc(row.linkedMember?.name || row.name || 'Sem nome')} ${self ? '<span class="self-badge">VOCÊ</span>' : ''}</div><div>${Number(row.points || 0).toLocaleString('pt-BR')}</div><div>${Number(row.total || 0)}</div></div>`;
         }).join('')}</div>`;
   }catch(err){
     console.error('renderWarRankingView', err);
