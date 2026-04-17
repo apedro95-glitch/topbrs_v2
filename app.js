@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.7.8 Oficial Auto';
+const appVersion = 'V2.0.7.9 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -12,9 +12,12 @@ const monthLabels = {
 };
 const dayOrder = ['quinta','sexta','sabado','domingo'];
 let deferredPrompt = null;
-const WAR_AUTO_AUTO_REFRESH_MS = 30000;
+const WAR_AUTO_AUTO_REFRESH_MS = 180000;
+const WAR_RANKING_AUTO_REFRESH_MS = 180000;
 let warAutoRefreshTimer = null;
 let warAutoRefreshBusy = false;
+let warRankingRefreshTimer = null;
+let warRankingRefreshBusy = false;
 let currentDecksRarityFilter = 'all';
 let __topbrsToastTimer = null;
 
@@ -989,7 +992,7 @@ function monthContext(month){
       if(position != null) position = Number(position);
       const participated = !!item.participated || !!position;
       return {participated, position, points: computeTournamentPoints(position, participated)};
-    });
+    }).map(stabilizeWarDayDistribution);
     tournament.pointsMonth = round1(tournament.weeks.reduce((acc, item) => acc + item.points, 0));
     tournament.top3Month = tournament.weeks.filter(item => item.position && item.position <= 3).length;
 
@@ -1495,6 +1498,63 @@ const WAR_AUTO_MIRROR_CACHE = new Map();
 let WAR_AUTO_MIRROR_LAST_KEY = '';
 
 
+
+function stabilizeWarDayDistribution(row = {}){
+  const next = { ...row };
+  const dayKeys = ['thu','fri','sat','sun'];
+  next.thu = Number(next.thu || 0);
+  next.fri = Number(next.fri || 0);
+  next.sat = Number(next.sat || 0);
+  next.sun = Number(next.sun || 0);
+  const currentDay = getCurrentWarDayKey() || 'sun';
+  const currentIndex = Math.max(0, dayKeys.indexOf(currentDay));
+  let total = Number(next.total || 0);
+  if(!Number.isFinite(total) || total < 0) total = 0;
+  let sum = dayKeys.reduce((acc, key) => acc + Number(next[key] || 0), 0);
+  if(sum < total){
+    let remaining = total - sum;
+    for(let i = currentIndex; i >= 0 && remaining > 0; i--){
+      const key = dayKeys[i];
+      const current = Number(next[key] || 0);
+      const room = Math.max(0, 4 - current);
+      const fill = Math.min(room, remaining);
+      next[key] = current + fill;
+      remaining -= fill;
+    }
+  }
+  next.total = Math.max(total, dayKeys.reduce((acc, key) => acc + Number(next[key] || 0), 0));
+  return next;
+}
+
+function clearWarRankingRefreshTimer(){
+  if(warRankingRefreshTimer){
+    clearInterval(warRankingRefreshTimer);
+    warRankingRefreshTimer = null;
+  }
+}
+
+async function runWarRankingRefreshCycle(reason='timer'){
+  if(warRankingRefreshBusy) return;
+  if(activeViewId !== 'warRankingView') return;
+  warRankingRefreshBusy = true;
+  try{
+    await renderWarRankingView(reason === 'manual');
+  }catch(e){
+    console.error('War ranking refresh cycle error:', e);
+  }finally{
+    warRankingRefreshBusy = false;
+  }
+}
+
+function startWarRankingRefreshTimer(){
+  clearWarRankingRefreshTimer();
+  if(activeViewId !== 'warRankingView') return;
+  warRankingRefreshTimer = setInterval(() => {
+    runWarRankingRefreshCycle('timer');
+  }, WAR_RANKING_AUTO_REFRESH_MS);
+}
+
+
 function mergeWarRowsKeepingBest(currentRows = [], historyRows = []){
   const map = new Map();
   const put = (row={}) => {
@@ -1519,7 +1579,7 @@ function mergeWarRowsKeepingBest(currentRows = [], historyRows = []){
   };
   historyRows.forEach(put);
   currentRows.forEach(put);
-  return Array.from(map.values());
+  return Array.from(map.values()).map(stabilizeWarDayDistribution);
 }
 
 function ensureWarAdjustModal(){
@@ -1737,7 +1797,7 @@ async function renderWarAutoView(options = {}){
         const liveRows = buildWarAutoApiRowsFromRace(race, selection);
         if(Array.isArray(liveRows) && liveRows.length){
           const historyBeforeSave = await fetchWarHistoryRows(selection.month, selection.week);
-          rows = mergeWarRowsKeepingBest(liveRows, historyBeforeSave);
+          rows = mergeWarRowsKeepingBest(liveRows, historyBeforeSave).map(stabilizeWarDayDistribution);
           liveEnabled = true;
           source = 'api-live';
           await saveCurrentWarToFirestore(rows, selection, { source: 'api-live', reason: options.force ? 'manual-refresh' : 'auto-refresh' });
@@ -1746,7 +1806,7 @@ async function renderWarAutoView(options = {}){
     }
 
     if(!rows.length){
-      rows = await fetchWarHistoryRows(selection.month, selection.week);
+      rows = (await fetchWarHistoryRows(selection.month, selection.week)).map(stabilizeWarDayDistribution);
       source = rows.length ? 'war_history' : 'empty';
     }
     const sorted = [...rows].sort((a,b)=> (Number(b.total||0) - Number(a.total||0)) || String(a.name||'').localeCompare(String(b.name||''), 'pt-BR'));
@@ -1827,11 +1887,11 @@ async function renderWarAutoView(options = {}){
 
 async function getEligibleWarRankingRows(force=false){
   const selection = getWarRankingSelection();
-  let rows = await fetchWarHistoryRows(selection.month, selection.week);
+  let rows = (await fetchWarHistoryRows(selection.month, selection.week)).map(stabilizeWarDayDistribution);
   if(!rows.length && isCurrentWarSelection(selection)){
     try{
       const race = await fetchClashCurrentRiverRace(window.TOPBRS_FIREBASE_CONFIG?.clashClanTag || '#QRG9QQ', { force: Boolean(force) });
-      rows = buildWarAutoApiRowsFromRace(race, selection);
+      rows = buildWarAutoApiRowsFromRace(race, selection).map(stabilizeWarDayDistribution);
     }catch(e){
       rows = [];
     }
@@ -3235,8 +3295,18 @@ function setActiveView(viewId){
   $all('.view').forEach(v => v.classList.toggle('active', v.id === viewId));
   $all('[data-view]').forEach(btn => btn.classList.toggle('active', btn.dataset.view === viewId));
   updateTopbarTitle(viewId);
-  if(viewId === 'warAutoView') renderWarAutoView({ force:true });
-  if(viewId === 'warRankingView') renderWarRankingView(true);
+  if(viewId === 'warAutoView') {
+    renderWarAutoView({ force:true });
+    startWarAutoRefreshTimer();
+    clearWarRankingRefreshTimer();
+  } else if(viewId === 'warRankingView') {
+    renderWarRankingView(true);
+    startWarRankingRefreshTimer();
+    clearWarAutoRefreshTimer();
+  } else {
+    clearWarAutoRefreshTimer();
+    clearWarRankingRefreshTimer();
+  }
   if(viewId === 'membersSyncView') renderMembersSyncView(true);
   if(viewId === 'apiLogsView') renderApiLogsView(true);
   if(viewId === 'decksView') renderDecksView(false);
@@ -3454,7 +3524,7 @@ function bind(){
   ui.currentViewBadge?.addEventListener('click', ()=> openDrawer(true));
   ui.menuToggleBtn?.addEventListener('click', ()=> openDrawer(true));
   ui.warAutoRefreshBtn?.addEventListener('click', ()=> runWarAutoRefreshCycle('manual'));
-  ui.warRankingRefreshBtn?.addEventListener('click', ()=> renderWarRankingView(true));
+  ui.warRankingRefreshBtn?.addEventListener('click', ()=> runWarRankingRefreshCycle('manual'));
   document.addEventListener('click', (e) => {
     const mb = e.target.closest('[data-war-ranking-month]');
     if(mb){ state.ui ||= {}; state.ui.warRankingMonth = mb.dataset.warRankingMonth; saveState(); renderWarRankingView(true); }
@@ -3469,7 +3539,7 @@ function bind(){
     }
     const rankingBtn = e.target.closest('[data-war-ranking-adjust]');
     if(rankingBtn){
-      try{ await promptWarOverride(JSON.parse(rankingBtn.dataset.warRankingAdjust || '{}'), 'war-ranking'); }catch(err){ console.warn('ranking adjust parse', err); }
+      return;
       return;
     }
   });
@@ -3625,9 +3695,13 @@ function bind(){
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){
     clearWarAutoRefreshTimer();
+    clearWarRankingRefreshTimer();
   }else if(activeViewId === 'warAutoView'){
     runWarAutoRefreshCycle('resume');
     startWarAutoRefreshTimer();
+  }else if(activeViewId === 'warRankingView'){
+    runWarRankingRefreshCycle('resume');
+    startWarRankingRefreshTimer();
   }
 });
 
@@ -3653,6 +3727,7 @@ bind();
 updateTopbarTitle(document.querySelector('.view.active')?.id || 'arenaView');
 render();
 if((document.querySelector('.view.active')?.id || 'arenaView') === 'warAutoView'){ startWarAutoRefreshTimer(); }
+if((document.querySelector('.view.active')?.id || 'arenaView') === 'warRankingView'){ startWarRankingRefreshTimer(); }
 updateFloatingHeader();
 })();
 
