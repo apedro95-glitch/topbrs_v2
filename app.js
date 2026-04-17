@@ -1,9 +1,30 @@
 
+let userInteracting = false;
+let lastInteractionTime = Date.now();
+
+function registerUserInteraction(){
+  userInteracting = true;
+  lastInteractionTime = Date.now();
+}
+
+['touchstart','scroll','click'].forEach(evt=>{
+  document.addEventListener(evt, registerUserInteraction, { passive:true });
+});
+
+function canAutoRefresh(){
+  const now = Date.now();
+  if(userInteracting && (now - lastInteractionTime < 10000)){
+    return false;
+  }
+  userInteracting = false;
+  return true;
+}
+
 (function(){
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.7.9 Oficial Auto';
+const appVersion = 'V2.0.8.0 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -391,7 +412,7 @@ function startWarAutoRefreshTimer(){
   clearWarAutoRefreshTimer();
   if(activeViewId !== 'warAutoView') return;
   warAutoRefreshTimer = setInterval(() => {
-    runWarAutoRefreshCycle('timer');
+    if(canAutoRefresh()){ runWarAutoRefreshCycle('timer'); }
   }, WAR_AUTO_AUTO_REFRESH_MS);
 }
 
@@ -1550,7 +1571,7 @@ function startWarRankingRefreshTimer(){
   clearWarRankingRefreshTimer();
   if(activeViewId !== 'warRankingView') return;
   warRankingRefreshTimer = setInterval(() => {
-    runWarRankingRefreshCycle('timer');
+    if(canAutoRefresh()){ runWarRankingRefreshCycle('timer'); }
   }, WAR_RANKING_AUTO_REFRESH_MS);
 }
 
