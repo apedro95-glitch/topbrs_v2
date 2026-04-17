@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.7.4 Oficial Auto';
+const appVersion = 'V2.0.7.5 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -1549,9 +1549,8 @@ async function renderWarAutoView(options = {}){
       }catch(liveErr){ console.warn('war auto live api fallback', liveErr); }
     }
     if(!rows.length){
-      const manualRows = getWarAutoRowsFromManual(selection.month, selection.week, { force: Boolean(options.force) });
-      rows = manualRows;
-      source = rows.length ? 'fallback' : source;
+      rows = [];
+      source = canUseLiveApi ? source : 'empty';
     }
     const sorted = [...rows].sort((a,b)=> (Number(b.total||0) - Number(a.total||0)) || String(a.name||'').localeCompare(String(b.name||''), 'pt-BR'));
     const active = activeMembers() || [];
@@ -1730,7 +1729,7 @@ async function renderApiLogsView(force=false){
         <article class="api-log-card"><small>API base</small><strong>${config.clashApiBase ? 'OK' : '—'}</strong><div class="api-log-code">${esc(config.clashApiBase || 'Não definida')}</div></article>
         <article class="api-log-card"><small>Race state</small><strong>${esc(raceState)}</strong><div class="api-log-code">Participantes: ${participants}</div></article>
         <article class="api-log-card"><small>Origem</small><strong>${esc(live.source || config.source || 'indefinida')}</strong><div class="api-log-code">${esc(live.updatedAt || config.updatedAt || 'sem horário')}</div></article>
-        <article class="api-log-card"><small>Última leitura app</small><strong>${live.liveEnabled ? 'Live' : 'Fallback'}</strong><div class="api-log-code">${esc(live.updatedAt || 'sem leitura')}</div></article>
+        <article class="api-log-card"><small>Última leitura app</small><strong>${live.liveEnabled ? 'Live' : (live.source === 'empty' ? 'Sem dados' : 'Fallback')}</strong><div class="api-log-code">${esc(live.updatedAt || 'sem leitura')}</div></article>
       </div>
     `;
   }catch(err){

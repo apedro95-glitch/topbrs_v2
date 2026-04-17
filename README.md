@@ -1,6 +1,6 @@
 # TOP BRS CUP
 
-Versão atual: V2.0.7.4 Oficial Auto
+Versão atual: V2.0.7.5 Oficial Auto
 
 - Guerra Auto lendo war_history
 - Ranking Guerra com PTS por fame e ATK por ataques
