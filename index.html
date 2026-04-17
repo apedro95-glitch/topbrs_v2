@@ -74,7 +74,30 @@
     </header>
 
     <main class="content">
-      
+      <section class="hero glass">
+        <div class="hero-copy">
+          <p class="eyebrow">Clã</p>
+          <div id="heroClanName" class="hero-clan-logo-wrap"><img src="top_brs_wordmark.png" class="hero-clan-logo" alt="TOP BR\'S"></div>
+          <div class="hero-tags hero-tags-minimal"></div>
+        </div>
+        <div class="hero-controls">
+          <div class="hero-picker">
+            <span class="picker-label">MÊS ATIVO</span>
+            <div id="monthChipBar" class="hero-chipbar month-chipbar"></div>
+            <select id="monthSelect" class="sr-only" aria-label="Mês ativo"></select>
+          </div>
+          <div class="hero-picker" id="weekHeroPicker">
+            <span class="picker-label">SEMANA FOCO</span>
+            <div id="weekChipBar" class="hero-chipbar week-chipbar"></div>
+            <select id="weekSelect" class="sr-only" aria-label="Semana foco">
+              <option value="1">Semana 1</option>
+              <option value="2">Semana 2</option>
+              <option value="3">Semana 3</option>
+              <option value="4">Semana 4</option>
+            </select>
+          </div>
+        </div>
+      </section>
 
       <section id="arenaView" class="view active">
         <div class="kpi-grid" id="kpiGrid"></div>
@@ -456,7 +479,7 @@
     <footer class="app-footer">
       <small>•</small>
       <small class="creator-credit">Criador: Anderson Pedro • Todos direitos reservado ®️</small>
-      <small class="footer-version">V2.0.8.1 Oficial Auto</small>
+      <small class="footer-version">V2.0.7.9 Oficial Auto</small>
     </footer>
   </div>
 
