@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.7.6 Oficial Auto';
+const appVersion = 'V2.0.7.5 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -1260,30 +1260,20 @@ async function fetchWarHistoryRows(month, week){
     const membersSnap = await getDocs(collection(db, 'war_history', docId, 'members'));
     return membersSnap.docs.map(d => {
       const m = d.data() || {};
-      const apiThu = Number(m.thu || m.days?.thu || 0);
-      const apiFri = Number(m.fri || m.days?.fri || 0);
-      const apiSat = Number(m.sat || m.days?.sat || 0);
-      const apiSun = Number(m.sun || m.days?.sun || 0);
-      const manualThu = Number(m.manualThu || m.manual_thu || 0);
-      const manualFri = Number(m.manualFri || m.manual_fri || 0);
-      const manualSat = Number(m.manualSat || m.manual_sat || 0);
-      const manualSun = Number(m.manualSun || m.manual_sun || 0);
-      const thu = Math.max(apiThu, manualThu);
-      const fri = Math.max(apiFri, manualFri);
-      const sat = Math.max(apiSat, manualSat);
-      const sun = Math.max(apiSun, manualSun);
-      const total = Math.max(Number(m.attacks || m.totalAttacks || 0), (thu+fri+sat+sun));
-      const points = Math.max(Number(m.points || 0), Number(m.manualPoints || 0));
+      const thu = Number(m.thu || m.days?.thu || 0);
+      const fri = Number(m.fri || m.days?.fri || 0);
+      const sat = Number(m.sat || m.days?.sat || 0);
+      const sun = Number(m.sun || m.days?.sun || 0);
+      const total = Number(m.attacks || m.totalAttacks || (thu+fri+sat+sun) || 0);
       return {
         name: m.name || d.id,
         playerTag: normalizePlayerTag(m.playerTag || m.tag || ''),
         role: m.role || 'Membro',
         thu, fri, sat, sun, total,
-        points,
-        manualPoints: Number(m.manualPoints || 0),
+        points: Number(m.points || 0),
         clinchit: Boolean(m.clinchit),
         weekId: docId,
-        source: String(m.source || 'war_history')
+        source: 'war_history'
       };
     });
   }catch(err){
@@ -1291,77 +1281,6 @@ async function fetchWarHistoryRows(month, week){
     return [];
   }
 }
-
-
-function buildWarHistoryMemberDocId(row, index=0){
-  return String(row?.playerTag || row?.tag || row?.name || `member_${index}`)
-    .normalize('NFD').replace(/[̀-ͯ]/g,'')
-    .replace(/[.#$/\[\]]/g,'')
-    .replace(/\s+/g,'_')
-    .replace(/[^\w-]/g,'_')
-    .replace(/_+/g,'_')
-    .replace(/^_+|_+$/g,'') || `member_${index}`;
-}
-
-async function saveManualWarOverride(selection, row, payload = {}){
-  try{
-    const firebase = window.TOPBRS_FIREBASE;
-    if(!firebase?.app) return false;
-    const { getFirestore, doc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js');
-    const db = firebase.db || getFirestore(firebase.app);
-    const monthNum = monthToNumber(selection.month);
-    if(!monthNum) return false;
-    const docId = `${new Date().getFullYear()}-${monthNum}-S${Number(selection.week || 1)}`;
-    const memberId = buildWarHistoryMemberDocId(row, 0);
-    const dayKey = payload.dayKey || getCurrentWarDayKey() || 'thu';
-    const updates = {
-      manualPoints: Number(payload.points || 0),
-      manualUpdatedAt: serverTimestamp(),
-      manualSource: 'admin-override',
-      source: 'manual-override'
-    };
-    updates[`manual${String(dayKey).charAt(0).toUpperCase()}${String(dayKey).slice(1)}`] = Number(payload.attacks || 0);
-    await setDoc(doc(db, 'war_history', docId, 'members', memberId), updates, { merge: true });
-    await setDoc(doc(db, 'war_history', docId), {
-      source: 'manual-override',
-      updatedAt: serverTimestamp(),
-      lastSyncOrigin: 'manual-override',
-      lastSyncReason: 'admin-adjust'
-    }, { merge: true });
-    return true;
-  }catch(err){
-    console.warn('saveManualWarOverride', err);
-    return false;
-  }
-}
-
-async function promptWarOverride(row, context = 'war-auto'){
-  if(!isAdminApp()) return;
-  const selection = context === 'war-ranking' ? getWarRankingSelection() : getWarAutoSelection();
-  const dayKey = getCurrentWarDayKey() || 'thu';
-  const currentDayValue = Number(row?.[dayKey] || 0);
-  const currentPointsValue = Number(row?.points || row?.livePoints || 0);
-  const attacksRaw = window.prompt(`Ajuste manual de ataques para ${row?.name || 'membro'} (${String(dayKey).toUpperCase()} 0-4)`, String(currentDayValue));
-  if(attacksRaw === null) return;
-  const pointsRaw = window.prompt(`Ajuste manual de pts (fame) para ${row?.name || 'membro'}`, String(currentPointsValue));
-  if(pointsRaw === null) return;
-  const attacks = Math.max(0, Math.min(4, Number(attacksRaw || 0)));
-  const points = Math.max(0, Number(String(pointsRaw || '0').replace(/\./g,'').replace(',','.')) || 0);
-  const ok = await saveManualWarOverride(selection, row, { dayKey, attacks, points });
-  if(ok){
-    showToast('Ajuste manual salvo.');
-    if(context === 'war-ranking'){
-      renderWarRankingView(true);
-      renderWarAutoView({ force: true, silent: true });
-    }else{
-      renderWarAutoView({ force: true, silent: true });
-      renderWarRankingView(true);
-    }
-  }else{
-    showToast('Não foi possível salvar o ajuste manual.');
-  }
-}
-
 
 async function saveCurrentWarToFirestore(rows, selection, extra = {}){
   try{
@@ -1402,15 +1321,10 @@ async function saveCurrentWarToFirestore(rows, selection, extra = {}){
         role: row.role || 'Membro',
         attacks: Number(row.total || 0),
         totalAttacks: Number(row.total || 0),
-        apiAttacks: Number(row.total || 0),
         thu: Number(row.thu || 0),
         fri: Number(row.fri || 0),
         sat: Number(row.sat || 0),
         sun: Number(row.sun || 0),
-        apiThu: Number(row.thu || 0),
-        apiFri: Number(row.fri || 0),
-        apiSat: Number(row.sat || 0),
-        apiSun: Number(row.sun || 0),
         days: {
           thu: Number(row.thu || 0),
           fri: Number(row.fri || 0),
@@ -1695,7 +1609,6 @@ async function renderWarAutoView(options = {}){
               <button class="war-auto-toggle" type="button" data-war-auto-toggle="${esc(cardKey)}" aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="${esc(bodyId)}" title="${expanded ? 'Recolher detalhes' : 'Expandir detalhes'}"><span class="war-auto-chevron">${expanded ? '▾' : '▸'}</span></button>
             </div>
             <div id="${esc(bodyId)}" class="war-auto-days ${expanded ? 'expanded' : 'collapsed'}">
-              ${isAdminApp() ? `<div class="war-auto-admin-tools"><button class="war-adjust-btn" type="button" data-war-adjust="${esc(encodeURIComponent(JSON.stringify({ name: member.name, playerTag: member.playerTag || '', role: role, thu: Number(member.thu||0), fri: Number(member.fri||0), sat: Number(member.sat||0), sun: Number(member.sun||0), total: Number(member.total||0), points: Number(points||0) }))}">Ajuste manual</button></div>` : ''}
               <div class="war-auto-day"><span>Qui</span><div class="war-auto-dots">${renderWarAutoDots(member.thu)}</div><b>${Number(member.thu||0)}/4</b></div>
               <div class="war-auto-day"><span>Sex</span><div class="war-auto-dots">${renderWarAutoDots(member.fri)}</div><b>${Number(member.fri||0)}/4</b></div>
               <div class="war-auto-day"><span>Sáb</span><div class="war-auto-dots">${renderWarAutoDots(member.sat)}</div><b>${Number(member.sat||0)}/4</b></div>
@@ -1752,7 +1665,7 @@ async function renderWarRankingView(force=false){
     }
     ui.warRankingBoard.innerHTML = `<div class="war-ranking-table"><div class="war-ranking-head"><div>Pos</div><div>Nick</div><div>Pts</div><div>Atk</div></div>${rows.map((row, index) => {
           const self = memberMatchesCurrentUser(row.linkedMember || row);
-          return `<div class="war-ranking-row ${index===0?'top-1':index===1?'top-2':index===2?'top-3':''} ${self?'is-self':''}"><div class="pos">#${index + 1}</div><div class="nick">${esc(row.linkedMember?.name || row.name || 'Sem nome')} ${self ? '<span class="self-badge">VOCÊ</span>' : ''}${isAdminApp() ? ` <button class="war-ranking-adjust-btn" type="button" data-war-ranking-adjust="${esc(encodeURIComponent(JSON.stringify({ name: row.name, playerTag: row.playerTag || '', role: row.role || row.linkedMember?.role || 'Membro', thu: Number(row.thu||0), fri: Number(row.fri||0), sat: Number(row.sat||0), sun: Number(row.sun||0), total: Number(row.total||0), points: Number(row.points||0) }))}">Ajustar</button>` : ''}</div><div>${Number(row.points || 0).toLocaleString('pt-BR')}</div><div>${Number(row.total || 0)}</div></div>`;
+          return `<div class="war-ranking-row ${index===0?'top-1':index===1?'top-2':index===2?'top-3':''} ${self?'is-self':''}"><div class="pos">#${index + 1}</div><div class="nick">${esc(row.linkedMember?.name || row.name || 'Sem nome')} ${self ? '<span class="self-badge">VOCÊ</span>' : ''}</div><div>${Number(row.points || 0).toLocaleString('pt-BR')}</div><div>${Number(row.total || 0)}</div></div>`;
         }).join('')}</div>`;
   }catch(err){
     console.error('renderWarRankingView', err);
@@ -3345,25 +3258,11 @@ function bind(){
   ui.menuToggleBtn?.addEventListener('click', ()=> openDrawer(true));
   ui.warAutoRefreshBtn?.addEventListener('click', ()=> runWarAutoRefreshCycle('manual'));
   ui.warRankingRefreshBtn?.addEventListener('click', ()=> renderWarRankingView(true));
-  document.addEventListener('click', async (e) => {
+  document.addEventListener('click', (e) => {
     const mb = e.target.closest('[data-war-ranking-month]');
     if(mb){ state.ui ||= {}; state.ui.warRankingMonth = mb.dataset.warRankingMonth; saveState(); renderWarRankingView(true); }
     const wb = e.target.closest('[data-war-ranking-week]');
     if(wb){ state.ui ||= {}; state.ui.warRankingWeek = Number(wb.dataset.warRankingWeek || 1); saveState(); renderWarRankingView(true); }
-    const warAdjustBtn = e.target.closest('[data-war-adjust]');
-    if(warAdjustBtn){
-      try{
-        const row = JSON.parse(decodeURIComponent(warAdjustBtn.dataset.warAdjust || ''));
-        await promptWarOverride(row, 'war-auto');
-      }catch(err){ console.warn('war adjust parse', err); }
-    }
-    const warRankingAdjustBtn = e.target.closest('[data-war-ranking-adjust]');
-    if(warRankingAdjustBtn){
-      try{
-        const row = JSON.parse(decodeURIComponent(warRankingAdjustBtn.dataset.warRankingAdjust || ''));
-        await promptWarOverride(row, 'war-ranking');
-      }catch(err){ console.warn('war ranking adjust parse', err); }
-    }
   });
   ui.membersSyncRefreshBtn?.addEventListener('click', ()=> renderMembersSyncView(true));
   ui.apiLogsRefreshBtn?.addEventListener('click', ()=> renderApiLogsView(true));
