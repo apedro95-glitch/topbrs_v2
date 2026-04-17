@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.7.6 Oficial Auto';
+const appVersion = 'V2.0.7.7 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -1167,7 +1167,7 @@ function getWarRankingSelection(){
 
 function getRealCurrentWarSelection(){
   const now = new Date();
-  const monthKeys = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+  const monthKeys = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
   const month = monthKeys[now.getMonth()] || state.meta.currentMonth;
   const week = Math.max(1, Math.min(4, Math.ceil(now.getDate() / 7)));
   return { month, week };
@@ -1175,7 +1175,8 @@ function getRealCurrentWarSelection(){
 
 function isCurrentWarSelection(selection={}){
   const current = getRealCurrentWarSelection();
-  return String(selection.month || '').toUpperCase() === String(current.month || '').toUpperCase() && Number(selection.week || 0) === Number(current.week || 0);
+  return normalizeMonthKey(selection.month || '') === normalizeMonthKey(current.month || '') &&
+         Number(selection.week || 0) === Number(current.week || 0);
 }
 
 function applyWarRowsToState(month, week, rows=[]){
@@ -1245,6 +1246,11 @@ function monthToNumber(month){
     DEZEMBRO:'12', DEZ:'12'
   };
   return map[key] || '';
+}
+
+
+function normalizeMonthKey(month){
+  return monthToNumber(month || '') || String(month || '').trim().toUpperCase();
 }
 
 function buildWarManualMemberDocId(row, index=0){
@@ -1625,24 +1631,27 @@ async function renderWarAutoView(options = {}){
   if(ui.warAutoMeta) ui.warAutoMeta.textContent = '';
   try{
     const selection = getWarAutoSelection();
-    let rows = await fetchWarHistoryRows(selection.month, selection.week);
-    let source = rows.length ? 'war_history' : 'fallback';
+    let rows = [];
+    let source = 'empty';
     let liveEnabled = false;
     const canUseLiveApi = WAR_AUTO_REALTIME_READONLY && isCurrentWarSelection(selection);
-    if(!rows.length && canUseLiveApi){
+
+    if(canUseLiveApi){
       try{
         const race = await fetchClashCurrentRiverRace(window.TOPBRS_FIREBASE_CONFIG?.clashClanTag || '#QRG9QQ', { force: Boolean(options.force) });
-        rows = buildWarAutoApiRowsFromRace(race, selection);
-        liveEnabled = rows.length > 0;
-        source = liveEnabled ? 'api-live' : source;
-        if(liveEnabled){
+        const liveRows = buildWarAutoApiRowsFromRace(race, selection);
+        if(Array.isArray(liveRows) && liveRows.length){
+          rows = liveRows;
+          liveEnabled = true;
+          source = 'api-live';
           await saveCurrentWarToFirestore(rows, selection, { source: 'api-live', reason: options.force ? 'manual-refresh' : 'auto-refresh' });
         }
-      }catch(liveErr){ console.warn('war auto live api fallback', liveErr); }
+      }catch(liveErr){ console.warn('war auto live api priority', liveErr); }
     }
+
     if(!rows.length){
-      rows = [];
-      source = canUseLiveApi ? source : 'empty';
+      rows = await fetchWarHistoryRows(selection.month, selection.week);
+      source = rows.length ? 'war_history' : 'empty';
     }
     const sorted = [...rows].sort((a,b)=> (Number(b.total||0) - Number(a.total||0)) || String(a.name||'').localeCompare(String(b.name||''), 'pt-BR'));
     const active = activeMembers() || [];
@@ -1820,7 +1829,7 @@ async function renderApiLogsView(force=false){
       <div class="api-logs-grid">
         <article class="api-log-card"><small>API base</small><strong>${config.clashApiBase ? 'OK' : '—'}</strong><div class="api-log-code">${esc(config.clashApiBase || 'Não definida')}</div></article>
         <article class="api-log-card"><small>Race state</small><strong>${esc(raceState)}</strong><div class="api-log-code">Participantes: ${participants}</div></article>
-        <article class="api-log-card"><small>Origem</small><strong>${esc(live.source || config.source || 'indefinida')}</strong><div class="api-log-code">${esc(live.updatedAt || config.updatedAt || 'sem horário')}</div></article>
+        <article class="api-log-card"><small>Origem</small><strong>${esc(live.liveEnabled ? 'api-live + war_history' : (live.source || config.source || 'indefinida'))}</strong><div class="api-log-code">${esc(live.updatedAt || config.updatedAt || 'sem horário')}</div></article>
         <article class="api-log-card"><small>Última leitura app</small><strong>${live.liveEnabled ? 'Live' : (live.source === 'empty' ? 'Sem dados' : 'Fallback')}</strong><div class="api-log-code">${esc(live.updatedAt || 'sem leitura')}</div></article>
       </div>
     `;
