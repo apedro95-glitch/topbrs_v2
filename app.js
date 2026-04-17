@@ -24,7 +24,7 @@ function canAutoRefresh(){
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.8.0 Oficial Auto';
+const appVersion = 'V2.0.8.1 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -33,8 +33,8 @@ const monthLabels = {
 };
 const dayOrder = ['quinta','sexta','sabado','domingo'];
 let deferredPrompt = null;
-const WAR_AUTO_AUTO_REFRESH_MS = 180000;
-const WAR_RANKING_AUTO_REFRESH_MS = 180000;
+const WAR_AUTO_AUTO_REFRESH_MS = 0;
+const WAR_RANKING_AUTO_REFRESH_MS = 0;
 let warAutoRefreshTimer = null;
 let warAutoRefreshBusy = false;
 let warRankingRefreshTimer = null;
@@ -410,10 +410,6 @@ async function runWarAutoRefreshCycle(reason='timer'){
 
 function startWarAutoRefreshTimer(){
   clearWarAutoRefreshTimer();
-  if(activeViewId !== 'warAutoView') return;
-  warAutoRefreshTimer = setInterval(() => {
-    if(canAutoRefresh()){ runWarAutoRefreshCycle('timer'); }
-  }, WAR_AUTO_AUTO_REFRESH_MS);
 }
 
 function buildWarAutoApiRowsFromRace(raceData, selection){
@@ -1569,10 +1565,6 @@ async function runWarRankingRefreshCycle(reason='timer'){
 
 function startWarRankingRefreshTimer(){
   clearWarRankingRefreshTimer();
-  if(activeViewId !== 'warRankingView') return;
-  warRankingRefreshTimer = setInterval(() => {
-    if(canAutoRefresh()){ runWarRankingRefreshCycle('timer'); }
-  }, WAR_RANKING_AUTO_REFRESH_MS);
 }
 
 
@@ -3717,12 +3709,6 @@ document.addEventListener('visibilitychange', () => {
   if(document.hidden){
     clearWarAutoRefreshTimer();
     clearWarRankingRefreshTimer();
-  }else if(activeViewId === 'warAutoView'){
-    runWarAutoRefreshCycle('resume');
-    startWarAutoRefreshTimer();
-  }else if(activeViewId === 'warRankingView'){
-    runWarRankingRefreshCycle('resume');
-    startWarRankingRefreshTimer();
   }
 });
 
