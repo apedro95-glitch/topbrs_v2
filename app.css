@@ -4264,3 +4264,24 @@ button{transition:transform .16s ease, box-shadow .18s ease, filter .18s ease}bu
 .war-adjust-input{width:100%;border-radius:16px;border:1px solid rgba(140,170,255,.16);background:rgba(255,255,255,.03);color:#fff;padding:14px 16px;font-size:1rem;}
 .war-adjust-meta{font-size:.9rem;color:#96a1c8;}
 .war-adjust-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;}
+
+
+/* V2.0.8.2 recuperação */
+.hero.glass{display:none !important;}
+.recalc-btn{appearance:none;border:1px solid rgba(122,150,255,.28);background:rgba(122,150,255,.12);color:#eef2ff;border-radius:14px;padding:10px 14px;font-weight:800;font-size:.86rem}
+.recalc-btn:disabled{opacity:.6}
+
+.recalc-api-btn{
+  background:linear-gradient(180deg,rgba(94,131,255,.22),rgba(83,101,221,.16));
+  border-color:rgba(129,151,255,.35);
+  color:#eef4ff;
+}
+.recalc-api-dialog{
+  max-width:520px;
+}
+.recalc-api-copy{
+  margin:0;
+  color:#dbe6ff;
+  line-height:1.6;
+  font-size:.97rem;
+}
