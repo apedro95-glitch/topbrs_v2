@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.8.6 Oficial Auto';
+const appVersion = 'V2.0.8.7 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -2071,7 +2071,8 @@ async function rebuildLegacyWarStateFromHistory(){
   clearFutureWarHistoryMirror();
   const current = getRealCurrentWarSelection();
   const monthOrder = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
-  const currentMonthIndex = monthOrder.indexOf(canonicalMonthKey(current.month));
+  const currentMonthNum = Number(monthToNumber(current.month) || 0);
+  const currentMonthIndex = currentMonthNum > 0 ? currentMonthNum - 1 : -1;
   for(const month of Object.keys(state.months || {})){
     const canonical = canonicalMonthKey(month);
     if(canonical !== month){
@@ -2086,7 +2087,7 @@ async function rebuildLegacyWarStateFromHistory(){
       setWarHistoryMirrorRows(month, 1, []); setWarHistoryMirrorRows(month, 2, []); setWarHistoryMirrorRows(month, 3, []); setWarHistoryMirrorRows(month, 4, []);
     }
   }
-  for(const month of monthOrder.slice(0, currentMonthIndex + 1)){
+  for(const month of monthOrder.slice(0, Math.max(0, currentMonthIndex + 1))){
     const monthObj = ensureMonth(month);
     monthObj.weeks = {'1':{},'2':{},'3':{},'4':{}};
     for(let week=1; week<=4; week++){
