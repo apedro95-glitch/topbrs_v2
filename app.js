@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.8.3 Oficial Auto';
+const appVersion = 'V2.0.7.8 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -12,12 +12,9 @@ const monthLabels = {
 };
 const dayOrder = ['quinta','sexta','sabado','domingo'];
 let deferredPrompt = null;
-const WAR_AUTO_AUTO_REFRESH_MS = 0;
-const WAR_RANKING_AUTO_REFRESH_MS = 0;
+const WAR_AUTO_AUTO_REFRESH_MS = 30000;
 let warAutoRefreshTimer = null;
 let warAutoRefreshBusy = false;
-let warRankingRefreshTimer = null;
-let warRankingRefreshBusy = false;
 let currentDecksRarityFilter = 'all';
 let __topbrsToastTimer = null;
 
@@ -389,6 +386,10 @@ async function runWarAutoRefreshCycle(reason='timer'){
 
 function startWarAutoRefreshTimer(){
   clearWarAutoRefreshTimer();
+  if(activeViewId !== 'warAutoView') return;
+  warAutoRefreshTimer = setInterval(() => {
+    runWarAutoRefreshCycle('timer');
+  }, WAR_AUTO_AUTO_REFRESH_MS);
 }
 
 function buildWarAutoApiRowsFromRace(raceData, selection){
@@ -988,7 +989,7 @@ function monthContext(month){
       if(position != null) position = Number(position);
       const participated = !!item.participated || !!position;
       return {participated, position, points: computeTournamentPoints(position, participated)};
-    }).map(stabilizeWarDayDistribution);
+    });
     tournament.pointsMonth = round1(tournament.weeks.reduce((acc, item) => acc + item.points, 0));
     tournament.top3Month = tournament.weeks.filter(item => item.position && item.position <= 3).length;
 
@@ -1494,59 +1495,6 @@ const WAR_AUTO_MIRROR_CACHE = new Map();
 let WAR_AUTO_MIRROR_LAST_KEY = '';
 
 
-
-function stabilizeWarDayDistribution(row = {}){
-  const next = { ...row };
-  const dayKeys = ['thu','fri','sat','sun'];
-  next.thu = Number(next.thu || 0);
-  next.fri = Number(next.fri || 0);
-  next.sat = Number(next.sat || 0);
-  next.sun = Number(next.sun || 0);
-  const currentDay = getCurrentWarDayKey() || 'sun';
-  const currentIndex = Math.max(0, dayKeys.indexOf(currentDay));
-  let total = Number(next.total || 0);
-  if(!Number.isFinite(total) || total < 0) total = 0;
-  let sum = dayKeys.reduce((acc, key) => acc + Number(next[key] || 0), 0);
-  if(sum < total){
-    let remaining = total - sum;
-    for(let i = currentIndex; i >= 0 && remaining > 0; i--){
-      const key = dayKeys[i];
-      const current = Number(next[key] || 0);
-      const room = Math.max(0, 4 - current);
-      const fill = Math.min(room, remaining);
-      next[key] = current + fill;
-      remaining -= fill;
-    }
-  }
-  next.total = Math.max(total, dayKeys.reduce((acc, key) => acc + Number(next[key] || 0), 0));
-  return next;
-}
-
-function clearWarRankingRefreshTimer(){
-  if(warRankingRefreshTimer){
-    clearInterval(warRankingRefreshTimer);
-    warRankingRefreshTimer = null;
-  }
-}
-
-async function runWarRankingRefreshCycle(reason='timer'){
-  if(warRankingRefreshBusy) return;
-  if(activeViewId !== 'warRankingView') return;
-  warRankingRefreshBusy = true;
-  try{
-    await renderWarRankingView(reason === 'manual');
-  }catch(e){
-    console.error('War ranking refresh cycle error:', e);
-  }finally{
-    warRankingRefreshBusy = false;
-  }
-}
-
-function startWarRankingRefreshTimer(){
-  clearWarRankingRefreshTimer();
-}
-
-
 function mergeWarRowsKeepingBest(currentRows = [], historyRows = []){
   const map = new Map();
   const put = (row={}) => {
@@ -1571,7 +1519,7 @@ function mergeWarRowsKeepingBest(currentRows = [], historyRows = []){
   };
   historyRows.forEach(put);
   currentRows.forEach(put);
-  return Array.from(map.values()).map(stabilizeWarDayDistribution);
+  return Array.from(map.values());
 }
 
 function ensureWarAdjustModal(){
@@ -1789,7 +1737,7 @@ async function renderWarAutoView(options = {}){
         const liveRows = buildWarAutoApiRowsFromRace(race, selection);
         if(Array.isArray(liveRows) && liveRows.length){
           const historyBeforeSave = await fetchWarHistoryRows(selection.month, selection.week);
-          rows = mergeWarRowsKeepingBest(liveRows, historyBeforeSave).map(stabilizeWarDayDistribution);
+          rows = mergeWarRowsKeepingBest(liveRows, historyBeforeSave);
           liveEnabled = true;
           source = 'api-live';
           await saveCurrentWarToFirestore(rows, selection, { source: 'api-live', reason: options.force ? 'manual-refresh' : 'auto-refresh' });
@@ -1798,7 +1746,7 @@ async function renderWarAutoView(options = {}){
     }
 
     if(!rows.length){
-      rows = (await fetchWarHistoryRows(selection.month, selection.week)).map(stabilizeWarDayDistribution);
+      rows = await fetchWarHistoryRows(selection.month, selection.week);
       source = rows.length ? 'war_history' : 'empty';
     }
     const sorted = [...rows].sort((a,b)=> (Number(b.total||0) - Number(a.total||0)) || String(a.name||'').localeCompare(String(b.name||''), 'pt-BR'));
@@ -1879,11 +1827,11 @@ async function renderWarAutoView(options = {}){
 
 async function getEligibleWarRankingRows(force=false){
   const selection = getWarRankingSelection();
-  let rows = (await fetchWarHistoryRows(selection.month, selection.week)).map(stabilizeWarDayDistribution);
+  let rows = await fetchWarHistoryRows(selection.month, selection.week);
   if(!rows.length && isCurrentWarSelection(selection)){
     try{
       const race = await fetchClashCurrentRiverRace(window.TOPBRS_FIREBASE_CONFIG?.clashClanTag || '#QRG9QQ', { force: Boolean(force) });
-      rows = buildWarAutoApiRowsFromRace(race, selection).map(stabilizeWarDayDistribution);
+      rows = buildWarAutoApiRowsFromRace(race, selection);
     }catch(e){
       rows = [];
     }
@@ -2212,112 +2160,6 @@ function renderRanking(ctx){
     </div>
   `;
 }
-
-
-function ensureRecalcApiModal(){
-  let modal = document.getElementById('recalcApiModal');
-  if(modal) return modal;
-  modal = document.createElement('div');
-  modal.id = 'recalcApiModal';
-  modal.className = 'war-adjust-modal hidden';
-  modal.innerHTML = `
-    <div class="war-adjust-backdrop" data-recalc-api-close="1"></div>
-    <div class="war-adjust-dialog recalc-api-dialog">
-      <div class="war-adjust-head">
-        <div>
-          <small>RECALCULAR COM API</small>
-          <h3 id="recalcApiTitle">Confirmar recálculo</h3>
-        </div>
-        <button type="button" class="war-adjust-close" data-recalc-api-close="1">×</button>
-      </div>
-      <div class="war-adjust-body">
-        <p class="recalc-api-copy">Isso vai buscar novamente a semana atual na API, sobrescrever a semana atual no <strong>war_history</strong> preservando os maiores valores já confirmados, e recalcular o mês ativo inteiro.</p>
-      </div>
-      <div class="war-adjust-actions">
-        <button type="button" class="ghost" data-recalc-api-close="1">Cancelar</button>
-        <button type="button" class="primary" id="recalcApiConfirmBtn">Recalcular agora</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  modal.addEventListener('click', async (e) => {
-    if(e.target.closest('[data-recalc-api-close="1"]')){
-      closeRecalcApiModal();
-      return;
-    }
-    const confirmBtn = e.target.closest('#recalcApiConfirmBtn');
-    if(confirmBtn){
-      const month = modal.dataset.month || state.meta.currentMonth;
-      confirmBtn.disabled = true;
-      await recalcMonthUsingLiveApi(month);
-      confirmBtn.disabled = false;
-      closeRecalcApiModal();
-    }
-  });
-  return modal;
-}
-
-function openRecalcApiModal(month){
-  const modal = ensureRecalcApiModal();
-  modal.dataset.month = month || state.meta.currentMonth;
-  modal.classList.remove('hidden');
-}
-
-function closeRecalcApiModal(){
-  const modal = document.getElementById('recalcApiModal');
-  if(!modal) return;
-  modal.classList.add('hidden');
-}
-
-async function recalcMonthUsingLiveApi(month){
-  try{
-    const targetMonth = month || state.meta.currentMonth;
-    const current = getRealCurrentWarSelection();
-    const canUseApi = normalizeMonthKey(targetMonth) === normalizeMonthKey(current.month);
-    if(canUseApi){
-      const selection = { month: targetMonth, week: current.week };
-      const historyRows = await fetchWarHistoryRows(selection.month, selection.week);
-      const race = await fetchClashCurrentRiverRace(window.TOPBRS_FIREBASE_CONFIG?.clashClanTag || '#QRG9QQ', { force: true });
-      const liveRows = buildWarAutoApiRowsFromRace(race, selection);
-      const mergedRows = mergeWarRowsKeepingBest(liveRows, historyRows);
-      if(Array.isArray(mergedRows) && mergedRows.length){
-        await saveCurrentWarToFirestore(mergedRows, selection, { source: 'api-live', reason: 'recalc-api' });
-      }
-    }
-    return await recalcMonthFromWarHistory(targetMonth);
-  }catch(err){
-    console.error('recalcMonthUsingLiveApi', err);
-    showToast('Falha ao recalcular com API.', 'error');
-    return false;
-  }
-}
-
-
-async function recalcMonthFromWarHistory(month){
-  try{
-    const targetMonth = month || state.meta.currentMonth;
-    state.months[targetMonth] ||= {weeks:{}, tournament:{}, summaryOriginal:{}};
-    // reset only war weeks, preserve tournament
-    state.months[targetMonth].weeks = {};
-    let importedWeeks = 0;
-    for(const week of [1,2,3,4]){
-      const rows = await fetchWarHistoryRows(targetMonth, week);
-      if(Array.isArray(rows) && rows.length){
-        applyWarRowsToState(targetMonth, week, rows);
-        importedWeeks += 1;
-      }
-    }
-    saveState();
-    render();
-    showToast(`Recalculo concluído: ${monthLabel(targetMonth)} (${importedWeeks} semana(s)).`);
-    return true;
-  }catch(err){
-    console.error('recalcMonthFromWarHistory', err);
-    showToast('Falha ao recalcular o mês.', 'error');
-    return false;
-  }
-}
-
 function renderLeaderActions(ctx){
   const actions = [
     ['🚀 Promover', ctx.summaries.filter(s => s.suggestion === 'PROMOVER')],
@@ -2325,7 +2167,7 @@ function renderLeaderActions(ctx){
     ['❌ Expulsar', ctx.summaries.filter(s => s.suggestion === 'EXPULSAR')],
     ['👑 MVP', ctx.summaries.slice(0,1)]
   ];
-  const cards = actions.map(([title, list]) => `
+  ui.leaderActions.innerHTML = actions.map(([title, list]) => `
     <article class="leader-card">
       <div class="leader-top">
         <strong>${title}</strong>
@@ -2336,8 +2178,6 @@ function renderLeaderActions(ctx){
       </div>
     </article>
   `).join('');
-  const recovery = isAdminApp() ? `<article class="leader-card"><div class="leader-top"><strong>🛠️ Recuperação</strong><span class="chip blue">Admin</span></div><div class="chips"><button type="button" class="recalc-btn" id="recalcCurrentMonthBtn">Recalcular mês ativo</button><button type="button" class="recalc-btn primary recalc-api-btn" id="recalcCurrentMonthApiBtn">Recalcular com API</button><span class="mini">Reconstrói o mês pelo war_history ou força nova leitura da API para a semana atual.</span></div></article>` : '';
-  ui.leaderActions.innerHTML = cards + recovery;
 }
 function annualSummary(){
   const members = activeMembers();
@@ -3395,18 +3235,8 @@ function setActiveView(viewId){
   $all('.view').forEach(v => v.classList.toggle('active', v.id === viewId));
   $all('[data-view]').forEach(btn => btn.classList.toggle('active', btn.dataset.view === viewId));
   updateTopbarTitle(viewId);
-  if(viewId === 'warAutoView') {
-    renderWarAutoView({ force:true });
-    startWarAutoRefreshTimer();
-    clearWarRankingRefreshTimer();
-  } else if(viewId === 'warRankingView') {
-    renderWarRankingView(true);
-    startWarRankingRefreshTimer();
-    clearWarAutoRefreshTimer();
-  } else {
-    clearWarAutoRefreshTimer();
-    clearWarRankingRefreshTimer();
-  }
+  if(viewId === 'warAutoView') renderWarAutoView({ force:true });
+  if(viewId === 'warRankingView') renderWarRankingView(true);
   if(viewId === 'membersSyncView') renderMembersSyncView(true);
   if(viewId === 'apiLogsView') renderApiLogsView(true);
   if(viewId === 'decksView') renderDecksView(false);
@@ -3624,22 +3454,12 @@ function bind(){
   ui.currentViewBadge?.addEventListener('click', ()=> openDrawer(true));
   ui.menuToggleBtn?.addEventListener('click', ()=> openDrawer(true));
   ui.warAutoRefreshBtn?.addEventListener('click', ()=> runWarAutoRefreshCycle('manual'));
-  ui.warRankingRefreshBtn?.addEventListener('click', ()=> runWarRankingRefreshCycle('manual'));
+  ui.warRankingRefreshBtn?.addEventListener('click', ()=> renderWarRankingView(true));
   document.addEventListener('click', (e) => {
     const mb = e.target.closest('[data-war-ranking-month]');
     if(mb){ state.ui ||= {}; state.ui.warRankingMonth = mb.dataset.warRankingMonth; saveState(); renderWarRankingView(true); }
     const wb = e.target.closest('[data-war-ranking-week]');
     if(wb){ state.ui ||= {}; state.ui.warRankingWeek = Number(wb.dataset.warRankingWeek || 1); saveState(); renderWarRankingView(true); }
-    const recalcBtn = e.target.closest('#recalcCurrentMonthBtn');
-    if(recalcBtn){
-      recalcBtn.disabled = true;
-      await recalcMonthFromWarHistory(state.meta.currentMonth);
-      recalcBtn.disabled = false;
-    }
-    const recalcApiBtn = e.target.closest('#recalcCurrentMonthApiBtn');
-    if(recalcApiBtn){
-      openRecalcApiModal(state.meta.currentMonth);
-    }
   });
   document.addEventListener('click', async (e) => {
     const manualBtn = e.target.closest('[data-war-adjust]');
@@ -3649,7 +3469,7 @@ function bind(){
     }
     const rankingBtn = e.target.closest('[data-war-ranking-adjust]');
     if(rankingBtn){
-      return;
+      try{ await promptWarOverride(JSON.parse(rankingBtn.dataset.warRankingAdjust || '{}'), 'war-ranking'); }catch(err){ console.warn('ranking adjust parse', err); }
       return;
     }
   });
@@ -3805,7 +3625,9 @@ function bind(){
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){
     clearWarAutoRefreshTimer();
-    clearWarRankingRefreshTimer();
+  }else if(activeViewId === 'warAutoView'){
+    runWarAutoRefreshCycle('resume');
+    startWarAutoRefreshTimer();
   }
 });
 
@@ -3831,7 +3653,6 @@ bind();
 updateTopbarTitle(document.querySelector('.view.active')?.id || 'arenaView');
 render();
 if((document.querySelector('.view.active')?.id || 'arenaView') === 'warAutoView'){ startWarAutoRefreshTimer(); }
-if((document.querySelector('.view.active')?.id || 'arenaView') === 'warRankingView'){ startWarRankingRefreshTimer(); }
 updateFloatingHeader();
 })();
 
