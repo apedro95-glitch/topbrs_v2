@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.7.8 Oficial Auto';
+const appVersion = 'V2.0.8.4 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -11,6 +11,26 @@ const monthLabels = {
   JULHO:'Julho',AGOSTO:'Agosto',SETEMBRO:'Setembro',OUTUBRO:'Outubro',NOVEMBRO:'Novembro',DEZEMBRO:'Dezembro'
 };
 const dayOrder = ['quinta','sexta','sabado','domingo'];
+
+const canonicalMonthMap = {
+  JAN:'JANEIRO', JANEIRO:'JANEIRO',
+  FEV:'FEVEREIRO', FEVEREIRO:'FEVEREIRO',
+  MAR:'MARÇO', 'MARÇO':'MARÇO', MARCO:'MARÇO',
+  ABR:'ABRIL', ABRIL:'ABRIL',
+  MAI:'MAIO', MAIO:'MAIO',
+  JUN:'JUNHO', JUNHO:'JUNHO',
+  JUL:'JULHO', JULHO:'JULHO',
+  AGO:'AGOSTO', AGOSTO:'AGOSTO',
+  SET:'SETEMBRO', SETEMBRO:'SETEMBRO',
+  OUT:'OUTUBRO', OUTUBRO:'OUTUBRO',
+  NOV:'NOVEMBRO', NOVEMBRO:'NOVEMBRO',
+  DEZ:'DEZEMBRO', DEZEMBRO:'DEZEMBRO'
+};
+function canonicalMonthKey(month){
+  const key = String(month || '').trim().toUpperCase();
+  return canonicalMonthMap[key] || key;
+}
+
 let deferredPrompt = null;
 const WAR_AUTO_AUTO_REFRESH_MS = 30000;
 let warAutoRefreshTimer = null;
@@ -807,7 +827,7 @@ function $all(sel){ return Array.from(document.querySelectorAll(sel)); }
 function esc(text){
   return String(text ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 }
-function monthLabel(m){ return monthLabels[m] || m; }
+function monthLabel(m){ const key = canonicalMonthKey(m); return monthLabels[key] || m; }
 function slugify(text){
   return String(text ?? '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -903,7 +923,7 @@ function toggleMemberCollapse(mode, memberName){
   const currentlyCollapsed = isCollapsed(mode, memberName);
   store[memberName] = !currentlyCollapsed ? true : false;
   saveState();
-  render();
+  rebuildLegacyWarStateFromHistory().then(() => render());
 }
 
 function roleWeight(role){
@@ -919,12 +939,13 @@ function activeMembers(includeArchived=false){
   });
 }
 function ensureMonth(month){
-  state.months[month] ||= {weeks:{},tournament:{},summaryOriginal:{}};
-  state.goals[month] ||= {attacks:1200,tournament:80};
+  const key = canonicalMonthKey(month);
+  state.months[key] ||= {weeks:{},tournament:{},summaryOriginal:{}};
+  state.goals[key] ||= {attacks:1200,tournament:80};
   for(let week=1;week<=4;week++){
-    state.months[month].weeks[String(week)] ||= {};
+    state.months[key].weeks[String(week)] ||= {};
   }
-  return state.months[month];
+  return state.months[key];
 }
 function ensureWeekMember(month, week, name){
   const monthObj = ensureMonth(month);
@@ -976,6 +997,7 @@ function computeTournamentPoints(position, participated){
   return points;
 }
 function monthContext(month){
+  month = canonicalMonthKey(month);
   const monthObj = ensureMonth(month);
   const members = activeMembers();
   const summaries = [];
@@ -1155,20 +1177,20 @@ window.addEventListener('orientationchange', () => setTimeout(applyDynamicTopSpa
 
 
 function getWarAutoSelection(){
-  const month = state.ui?.warAutoMonth || state.meta.currentMonth;
+  const month = canonicalMonthKey(state.ui?.warAutoMonth || state.meta.currentMonth);
   const week = Number(state.ui?.warAutoWeek || state.meta.currentWeek || 1);
   return { month, week };
 }
 function getWarRankingSelection(){
-  const month = state.ui?.warRankingMonth || state.ui?.warAutoMonth || state.meta.currentMonth;
+  const month = canonicalMonthKey(state.ui?.warRankingMonth || state.ui?.warAutoMonth || state.meta.currentMonth);
   const week = Number(state.ui?.warRankingWeek || state.ui?.warAutoWeek || state.meta.currentWeek || 1);
   return { month, week };
 }
 
 function getRealCurrentWarSelection(){
   const now = new Date();
-  const monthKeys = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
-  const month = monthKeys[now.getMonth()] || state.meta.currentMonth;
+  const monthKeys = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+  const month = monthKeys[now.getMonth()] || canonicalMonthKey(state.meta.currentMonth);
   const week = Math.max(1, Math.min(4, Math.ceil(now.getDate() / 7)));
   return { month, week };
 }
@@ -1925,8 +1947,8 @@ async function renderApiLogsView(force=false){
       <div class="api-logs-grid">
         <article class="api-log-card"><small>API base</small><strong>${config.clashApiBase ? 'OK' : '—'}</strong><div class="api-log-code">${esc(config.clashApiBase || 'Não definida')}</div></article>
         <article class="api-log-card"><small>Race state</small><strong>${esc(raceState)}</strong><div class="api-log-code">Participantes: ${participants}</div></article>
-        <article class="api-log-card"><small>Origem</small><strong>${esc(live.liveEnabled ? 'api-live + war_history' : (live.source || config.source || 'indefinida'))}</strong><div class="api-log-code">${esc(live.updatedAt || config.updatedAt || 'sem horário')}</div></article>
-        <article class="api-log-card"><small>Última leitura app</small><strong>${live.liveEnabled ? 'Live' : (live.source === 'empty' ? 'Sem dados' : 'Fallback')}</strong><div class="api-log-code">${esc(live.updatedAt || 'sem leitura')}</div></article>
+        <article class="api-log-card"><small>Origem</small><strong>${esc(participants > 0 ? 'api-live + war_history' : (live.source || config.source || 'indefinida'))}</strong><div class="api-log-code">${esc(live.updatedAt || config.updatedAt || 'sem horário')}</div></article>
+        <article class="api-log-card"><small>Última leitura app</small><strong>${participants > 0 ? 'Live' : (live.source === 'empty' ? 'Sem dados' : 'Fallback')}</strong><div class="api-log-code">${esc(live.updatedAt || 'sem leitura')}</div></article>
       </div>
     `;
   }catch(err){
@@ -1976,8 +1998,43 @@ function integrateSyncedMember(payloadEncoded=''){
   }
 }
 
+
+async function rebuildLegacyWarStateFromHistory(){
+  const current = getRealCurrentWarSelection();
+  const monthOrder = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+  const currentMonthIndex = monthOrder.indexOf(canonicalMonthKey(current.month));
+  for(const month of Object.keys(state.months || {})){
+    const canonical = canonicalMonthKey(month);
+    if(canonical !== month){
+      state.months[canonical] = state.months[canonical] || state.months[month];
+      delete state.months[month];
+    }
+  }
+  for(const month of monthOrder){
+    if(monthOrder.indexOf(month) > currentMonthIndex){
+      const monthObj = ensureMonth(month);
+      monthObj.weeks = {'1':{},'2':{},'3':{},'4':{}};
+    }
+  }
+  for(const month of monthOrder.slice(0, currentMonthIndex + 1)){
+    const monthObj = ensureMonth(month);
+    monthObj.weeks = {'1':{},'2':{},'3':{},'4':{}};
+    for(let week=1; week<=4; week++){
+      try{
+        const rows = await fetchWarHistoryRows(month, week);
+        if(Array.isArray(rows) && rows.length){
+          applyWarRowsToState(month, week, rows);
+        }
+      }catch(err){
+        console.warn('rebuildLegacyWarStateFromHistory', month, week, err);
+      }
+    }
+  }
+  saveState();
+}
+
 function render(){
-  const month = state.meta.currentMonth;
+  const month = canonicalMonthKey(state.meta.currentMonth);
   const week = Number(state.meta.currentWeek || 1);
   const ctx = monthContext(month);
   const goals = state.goals[month] || {attacks:1200,tournament:80};
