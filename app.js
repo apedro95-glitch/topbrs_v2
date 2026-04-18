@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.9.0 Oficial Auto';
+const appVersion = 'V2.0.9.1 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -1627,6 +1627,15 @@ function ensureWarAdjustModal(){
       </div>
       <div class="war-adjust-body">
         <label class="war-adjust-label">
+          <span>Dia a ajustar</span>
+          <select id="warAdjustDay" class="war-adjust-input">
+            <option value="thu">Quinta</option>
+            <option value="fri">Sexta</option>
+            <option value="sat">Sábado</option>
+            <option value="sun">Domingo</option>
+          </select>
+        </label>
+        <label class="war-adjust-label">
           <span>Ataques do dia</span>
           <select id="warAdjustAttacks" class="war-adjust-input">
             <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
@@ -1645,6 +1654,15 @@ function ensureWarAdjustModal(){
     </div>
   `;
   document.body.appendChild(modal);
+  modal.addEventListener('change', (e) => {
+    const daySel = e.target.closest('#warAdjustDay');
+    if(!daySel) return;
+    const payload = modal._payload || null;
+    if(!payload?.row) return;
+    const dayKey = String(daySel.value || 'thu');
+    const attacks = modal.querySelector('#warAdjustAttacks');
+    if(attacks) attacks.value = String(Math.max(0, Math.min(4, Number(payload.row?.[dayKey] || 0))));
+  });
   modal.addEventListener('click', async (e) => {
     if(e.target.closest('[data-war-adjust-close="1"]')){
       closeWarAdjustModal();
@@ -1656,13 +1674,14 @@ function ensureWarAdjustModal(){
       if(!payload) return;
       saveBtn.disabled = true;
       try{
+        const dayKey = String(document.getElementById('warAdjustDay')?.value || payload.dayKey || 'thu');
         const attacks = Math.max(0, Math.min(4, Number(document.getElementById('warAdjustAttacks')?.value || 0)));
         const points = Math.max(0, Number(document.getElementById('warAdjustPoints')?.value || 0));
-        const ok = await saveManualWarOverride(payload.selection, payload.row, { dayKey: payload.dayKey, attacks, points });
+        const ok = await saveManualWarOverride(payload.selection, payload.row, { dayKey, attacks, points });
         if(ok){
           closeWarAdjustModal();
           showToast('Ajuste manual salvo.');
-          await renderWarAutoView({ force:true, silent:true });
+          await renderWarAutoView({ force:false, silent:true });
           await renderWarRankingView(true);
         }else{
           showToast('Não foi possível salvar o ajuste manual.', 'error');
@@ -1686,13 +1705,15 @@ function openWarAdjustModal(row, selection, dayKey){
   const modal = ensureWarAdjustModal();
   modal._payload = { row, selection, dayKey };
   const title = modal.querySelector('#warAdjustTitle');
+  const day = modal.querySelector('#warAdjustDay');
   const attacks = modal.querySelector('#warAdjustAttacks');
   const points = modal.querySelector('#warAdjustPoints');
   const meta = modal.querySelector('#warAdjustMeta');
   if(title) title.textContent = row?.name || 'Atualizar membro';
+  if(day) day.value = String(dayKey || 'thu');
   if(attacks) attacks.value = String(Math.max(0, Math.min(4, Number(row?.[dayKey] || 0))));
   if(points) points.value = String(Number(row?.points || row?.livePoints || 0) || 0);
-  if(meta) meta.textContent = `Dia atual da guerra: ${String(dayKey || '').toUpperCase()} • ajuste visível só para admin`;
+  if(meta) meta.textContent = 'Contingência visível só para admin • escolha o dia que deseja corrigir';
   modal.classList.remove('hidden');
 }
 
