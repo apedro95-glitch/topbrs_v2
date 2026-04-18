@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.9.2 Oficial Auto';
+const appVersion = 'V2.0.9.3 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -615,6 +615,13 @@ function canAdjustPointsForMember(member){
   if(isAdminApp()) return true;
   if(currentAccessRole() === 'editor' && memberMatchesCurrentUser(member)) return false;
   return canEditApp();
+}
+function ensureCanAdjustPointsForMember(member, context='pontuação'){
+  const allowed = canAdjustPointsForMember(member);
+  if(!allowed){
+    showToast(`Você não pode alterar sua própria ${context}.`, 'error');
+  }
+  return allowed;
 }
 function nextPromotedRole(role='Membro'){
   if(role === 'Membro') return 'Ancião';
@@ -2077,21 +2084,29 @@ async function renderApiLogsView(force=false){
     const config = await loadApiConfigSnapshot(force);
     let raceState = 'indisponível';
     let participants = 0;
+    let clanName = '—';
     try{
       const race = await fetchClashCurrentRiverRace(window.TOPBRS_FIREBASE_CONFIG?.clashClanTag || '#QRG9QQ', { force });
       raceState = String(race?.state || 'ok');
       participants = Array.isArray(race?.clan?.participants) ? race.clan.participants.length : 0;
+      clanName = String(race?.clan?.name || '—');
     }catch(e){}
     const live = state.ui?.lastWarAutoLive || {};
+    const currentSel = getRealCurrentWarSelection();
+    const dayKey = getCurrentWarDayKey();
+    const dayLabel = dayKey === 'thu' ? 'Quinta' : dayKey === 'fri' ? 'Sexta' : dayKey === 'sat' ? 'Sábado' : dayKey === 'sun' ? 'Domingo' : 'Fora da janela';
+    const readMode = participants > 0 ? 'Live' : (live.source === 'empty' ? 'Sem dados' : 'Fallback');
     if(ui.apiLogsMeta){
-      ui.apiLogsMeta.textContent = 'Painel técnico para admin • sem impacto no sistema geral.';
+      ui.apiLogsMeta.textContent = 'Painel técnico para líder/editor • sem impacto direto no sistema.';
     }
     ui.apiLogsBoard.innerHTML = `
       <div class="api-logs-grid">
         <article class="api-log-card"><small>API base</small><strong>${config.clashApiBase ? 'OK' : '—'}</strong><div class="api-log-code">${esc(config.clashApiBase || 'Não definida')}</div></article>
-        <article class="api-log-card"><small>Race state</small><strong>${esc(raceState)}</strong><div class="api-log-code">Participantes: ${participants}</div></article>
+        <article class="api-log-card"><small>Clã / Race state</small><strong>${esc(clanName)}</strong><div class="api-log-code">${esc(raceState)} • Participantes: ${participants}</div></article>
         <article class="api-log-card"><small>Origem</small><strong>${esc(participants > 0 ? 'api-live + war_history' : (live.source || config.source || 'war_history'))}</strong><div class="api-log-code">${esc(live.updatedAt || config.updatedAt || 'sem horário')}</div></article>
-        <article class="api-log-card"><small>Última leitura app</small><strong>${participants > 0 ? 'Live' : (live.source === 'empty' ? 'Sem dados' : 'Fallback')}</strong><div class="api-log-code">${esc(live.updatedAt || 'sem leitura')}</div></article>
+        <article class="api-log-card"><small>Última leitura app</small><strong>${readMode}</strong><div class="api-log-code">${esc(live.updatedAt || 'sem leitura')}</div></article>
+        <article class="api-log-card"><small>Semana real</small><strong>${esc(currentSel.month || '—')} • S${Number(currentSel.week || 0)}</strong><div class="api-log-code">Dia ativo: ${esc(dayLabel)}</div></article>
+        <article class="api-log-card"><small>Sincronização</small><strong>${esc(live.reason || config.lastSyncReason || '—')}</strong><div class="api-log-code">Origem salva: ${esc(config.lastSyncOrigin || live.source || '—')}</div></article>
       </div>
     `;
   }catch(err){
@@ -2257,9 +2272,10 @@ function render(){
   document.querySelectorAll('#warRankingView').forEach(section => section.classList.toggle('hidden', !showWarAuto));
   document.querySelectorAll('[data-view="membersSyncView"]').forEach(btn => btn.classList.toggle('hidden', !isAdminApp()));
   document.querySelectorAll('#membersSyncView').forEach(section => section.classList.toggle('hidden', !isAdminApp()));
-  document.querySelectorAll('[data-view="apiLogsView"]').forEach(btn => btn.classList.toggle('hidden', !isAdminApp()));
-  document.querySelectorAll('#apiLogsView').forEach(section => section.classList.toggle('hidden', !isAdminApp()));
-  if((!isAdminApp()) && ['membersSyncView','apiLogsView'].includes(activeViewId)) setActiveView('arenaView');
+  document.querySelectorAll('[data-view="apiLogsView"]').forEach(btn => btn.classList.toggle('hidden', !canEditApp()));
+  document.querySelectorAll('#apiLogsView').forEach(section => section.classList.toggle('hidden', !canEditApp()));
+  if((!isAdminApp()) && ['membersSyncView'].includes(activeViewId)) setActiveView('arenaView');
+  if((!canEditApp()) && ['apiLogsView'].includes(activeViewId)) setActiveView('arenaView');
   if(ui.weekHeroPicker){ ui.weekHeroPicker.classList.toggle('hidden', ['arenaView','eliteView'].includes(activeViewId)); }
   updateSelectors();
   window.TOPBRS_REMOTE?.afterRender?.();
@@ -3305,7 +3321,7 @@ function createMemberFromModal(){
 }
 function toggleAttack(payload){
   const [name, week, day, idx] = encodedParts(payload, 4);
-  if(!canAdjustPointsForMember({ name })) return;
+  if(!ensureCanAdjustPointsForMember({ name }, 'pontuação')) return;
   const record = ensureWeekMember(state.meta.currentMonth, Number(week), name);
   record.days[day].attacks[Number(idx)] = !record.days[day].attacks[Number(idx)];
   recomputeWeekRecord(record);
@@ -3314,7 +3330,7 @@ function toggleAttack(payload){
 }
 function toggleParticipation(payload){
   const [name, week] = encodedParts(payload, 2);
-  if(!canAdjustPointsForMember({ name })) return;
+  if(!ensureCanAdjustPointsForMember({ name }, 'pontuação')) return;
   const record = ensureTournamentMember(state.meta.currentMonth, name);
   const row = record.weeks[Number(week)-1];
   row.participated = !row.participated;
@@ -3324,7 +3340,7 @@ function toggleParticipation(payload){
 }
 function setTournamentPosition(payload, value){
   const [name, week] = encodedParts(payload, 2);
-  if(!canAdjustPointsForMember({ name })) return;
+  if(!ensureCanAdjustPointsForMember({ name }, 'pontuação')) return;
   const record = ensureTournamentMember(state.meta.currentMonth, name);
   const row = record.weeks[Number(week)-1];
   const position = value ? Number(value) : null;
@@ -3336,7 +3352,7 @@ function setTournamentPosition(payload, value){
 }
 function updatePosition(payload, value){
   const [name, week] = encodedParts(payload, 2);
-  if(!canAdjustPointsForMember({ name })) return;
+  if(!ensureCanAdjustPointsForMember({ name }, 'pontuação')) return;
   const record = ensureTournamentMember(state.meta.currentMonth, name);
   const row = record.weeks[Number(week)-1];
   row.position = value ? Number(value) : null;
