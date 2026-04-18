@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.8.4 Oficial Auto';
+const appVersion = 'V2.0.8.5 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -938,6 +938,70 @@ function activeMembers(includeArchived=false){
     return includeArchived ? true : m.status !== 'ARQUIVADO';
   });
 }
+
+function ensureWarHistoryMirror(){
+  state.warHistoryMirror ||= {};
+  return state.warHistoryMirror;
+}
+function setWarHistoryMirrorRows(month, week, rows=[]){
+  const mirror = ensureWarHistoryMirror();
+  const key = canonicalMonthKey(month);
+  mirror[key] ||= {};
+  mirror[key][String(week)] = Array.isArray(rows) ? rows.map(r => ({...r})) : [];
+}
+function getWarHistoryMirrorRows(month, week){
+  const mirror = ensureWarHistoryMirror();
+  const key = canonicalMonthKey(month);
+  return Array.isArray(mirror?.[key]?.[String(week)]) ? mirror[key][String(week)].map(r => ({...r})) : [];
+}
+function clearFutureWarHistoryMirror(){
+  const current = getRealCurrentWarSelection();
+  const monthOrder = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+  const currentMonthIndex = monthOrder.indexOf(canonicalMonthKey(current.month));
+  const mirror = ensureWarHistoryMirror();
+  for(const month of monthOrder){
+    if(monthOrder.indexOf(month) > currentMonthIndex){
+      mirror[month] = {'1':[],'2':[],'3':[],'4':[]};
+    }
+  }
+}
+function buildWeekRecordFromMirrorRows(memberName, rows=[]){
+  const record = {
+    name: memberName,
+    days:{
+      quinta:{attacks:[false,false,false,false],total:0,fourFour:false},
+      sexta:{attacks:[false,false,false,false],total:0,fourFour:false},
+      sabado:{attacks:[false,false,false,false],total:0,fourFour:false},
+      domingo:{attacks:[false,false,false,false],total:0,fourFour:false}
+    },
+    attacksTotal:0,
+    days44:0,
+    clinchit:false,
+    livePoints:0,
+    liveSource:'war_history',
+    liveUpdatedAt:null,
+    playerTag:''
+  };
+  const row = (rows || []).find(r => String(r.linkedMember?.name || r.name || '').trim().toLowerCase() === String(memberName || '').trim().toLowerCase());
+  if(!row) return recomputeWeekRecord(record);
+  const mapped = {
+    quinta: Math.max(0, Math.min(4, Number(row.thu || 0))),
+    sexta: Math.max(0, Math.min(4, Number(row.fri || 0))),
+    sabado: Math.max(0, Math.min(4, Number(row.sat || 0))),
+    domingo: Math.max(0, Math.min(4, Number(row.sun || 0)))
+  };
+  for(const day of dayOrder){
+    const total = Number(mapped[day] || 0);
+    record.days[day].attacks = Array.from({length:4}, (_, idx) => idx < total);
+    record.days[day].total = total;
+    record.days[day].fourFour = total === 4;
+  }
+  record.livePoints = Number(row.points || row.livePoints || 0);
+  record.liveSource = String(row.source || 'war_history');
+  record.playerTag = normalizePlayerTag(row.playerTag || row.tag || row.linkedMember?.playerTag || '');
+  return recomputeWeekRecord(record);
+}
+
 function ensureMonth(month){
   const key = canonicalMonthKey(month);
   state.months[key] ||= {weeks:{},tournament:{},summaryOriginal:{}};
@@ -1004,7 +1068,7 @@ function monthContext(month){
   let maxWeeksStarted = 0;
 
   for(const member of members){
-    const weekly = [1,2,3,4].map(week => recomputeWeekRecord(ensureWeekMember(month, week, member.name)));
+    const weekly = [1,2,3,4].map(week => buildWeekRecordFromMirrorRows(member.name, getWarHistoryMirrorRows(month, week)));
     const tournament = ensureTournamentMember(month, member.name);
     tournament.weeks = tournament.weeks.map((item, idx) => {
       let position = item.position === '' ? null : item.position;
@@ -1763,12 +1827,14 @@ async function renderWarAutoView(options = {}){
           liveEnabled = true;
           source = 'api-live';
           await saveCurrentWarToFirestore(rows, selection, { source: 'api-live', reason: options.force ? 'manual-refresh' : 'auto-refresh' });
+          setWarHistoryMirrorRows(selection.month, selection.week, rows);
         }
       }catch(liveErr){ console.warn('war auto live api priority', liveErr); }
     }
 
     if(!rows.length){
       rows = await fetchWarHistoryRows(selection.month, selection.week);
+      setWarHistoryMirrorRows(selection.month, selection.week, rows);
       source = rows.length ? 'war_history' : 'empty';
     }
     const sorted = [...rows].sort((a,b)=> (Number(b.total||0) - Number(a.total||0)) || String(a.name||'').localeCompare(String(b.name||''), 'pt-BR'));
@@ -1850,6 +1916,7 @@ async function renderWarAutoView(options = {}){
 async function getEligibleWarRankingRows(force=false){
   const selection = getWarRankingSelection();
   let rows = await fetchWarHistoryRows(selection.month, selection.week);
+  setWarHistoryMirrorRows(selection.month, selection.week, rows);
   if(!rows.length && isCurrentWarSelection(selection)){
     try{
       const race = await fetchClashCurrentRiverRace(window.TOPBRS_FIREBASE_CONFIG?.clashClanTag || '#QRG9QQ', { force: Boolean(force) });
@@ -1947,7 +2014,7 @@ async function renderApiLogsView(force=false){
       <div class="api-logs-grid">
         <article class="api-log-card"><small>API base</small><strong>${config.clashApiBase ? 'OK' : '—'}</strong><div class="api-log-code">${esc(config.clashApiBase || 'Não definida')}</div></article>
         <article class="api-log-card"><small>Race state</small><strong>${esc(raceState)}</strong><div class="api-log-code">Participantes: ${participants}</div></article>
-        <article class="api-log-card"><small>Origem</small><strong>${esc(participants > 0 ? 'api-live + war_history' : (live.source || config.source || 'indefinida'))}</strong><div class="api-log-code">${esc(live.updatedAt || config.updatedAt || 'sem horário')}</div></article>
+        <article class="api-log-card"><small>Origem</small><strong>${esc(participants > 0 ? 'api-live + war_history' : (live.source || config.source || 'war_history'))}</strong><div class="api-log-code">${esc(live.updatedAt || config.updatedAt || 'sem horário')}</div></article>
         <article class="api-log-card"><small>Última leitura app</small><strong>${participants > 0 ? 'Live' : (live.source === 'empty' ? 'Sem dados' : 'Fallback')}</strong><div class="api-log-code">${esc(live.updatedAt || 'sem leitura')}</div></article>
       </div>
     `;
@@ -2000,6 +2067,7 @@ function integrateSyncedMember(payloadEncoded=''){
 
 
 async function rebuildLegacyWarStateFromHistory(){
+  clearFutureWarHistoryMirror();
   const current = getRealCurrentWarSelection();
   const monthOrder = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
   const currentMonthIndex = monthOrder.indexOf(canonicalMonthKey(current.month));
@@ -2014,6 +2082,7 @@ async function rebuildLegacyWarStateFromHistory(){
     if(monthOrder.indexOf(month) > currentMonthIndex){
       const monthObj = ensureMonth(month);
       monthObj.weeks = {'1':{},'2':{},'3':{},'4':{}};
+      setWarHistoryMirrorRows(month, 1, []); setWarHistoryMirrorRows(month, 2, []); setWarHistoryMirrorRows(month, 3, []); setWarHistoryMirrorRows(month, 4, []);
     }
   }
   for(const month of monthOrder.slice(0, currentMonthIndex + 1)){
@@ -2022,6 +2091,7 @@ async function rebuildLegacyWarStateFromHistory(){
     for(let week=1; week<=4; week++){
       try{
         const rows = await fetchWarHistoryRows(month, week);
+        setWarHistoryMirrorRows(month, week, rows);
         if(Array.isArray(rows) && rows.length){
           applyWarRowsToState(month, week, rows);
         }
