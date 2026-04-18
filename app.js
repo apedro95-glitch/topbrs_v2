@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.9.1 Oficial Auto';
+const appVersion = 'V2.0.9.2 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -202,7 +202,8 @@ async function loadApiConfigSnapshot(force=false){
 }
 
 function getCurrentWarDayKey(){
-  const day = new Date().getDay();
+  const ref = getWarReferenceDate();
+  const day = ref.getDay();
   if(day === 4) return 'thu';
   if(day === 5) return 'fri';
   if(day === 6) return 'sat';
@@ -1246,6 +1247,23 @@ window.addEventListener('resize', applyDynamicTopSpacing);
 window.addEventListener('orientationchange', () => setTimeout(applyDynamicTopSpacing, 80));
 
 
+
+const WAR_DAY_SWITCH_HOUR = 6 + (41/60);
+
+function getWarReferenceDate(now = new Date()){
+  const ref = new Date(now);
+  const hour = ref.getHours() + (ref.getMinutes()/60);
+  const dow = ref.getDay(); // 0=Dom ... 6=Sáb
+
+  // A janela da guerra só vira por volta de 06:41 do dia seguinte.
+  // Antes disso, seguimos considerando o dia/bloco anterior.
+  if((dow === 5 || dow === 6 || dow === 0 || dow === 1) && hour < WAR_DAY_SWITCH_HOUR){
+    ref.setDate(ref.getDate() - 1);
+  }
+  return ref;
+}
+
+
 function getWarAutoSelection(){
   const month = canonicalMonthKey(state.ui?.warAutoMonth || state.meta.currentMonth);
   const week = Number(state.ui?.warAutoWeek || state.meta.currentWeek || 1);
@@ -1258,10 +1276,10 @@ function getWarRankingSelection(){
 }
 
 function getRealCurrentWarSelection(){
-  const now = new Date();
+  const ref = getWarReferenceDate();
   const monthKeys = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
-  const month = monthKeys[now.getMonth()] || canonicalMonthKey(state.meta.currentMonth);
-  const week = Math.max(1, Math.min(4, Math.ceil(now.getDate() / 7)));
+  const month = monthKeys[ref.getMonth()] || canonicalMonthKey(state.meta.currentMonth);
+  const week = Math.max(1, Math.min(4, Math.ceil(ref.getDate() / 7)));
   return { month, week };
 }
 
@@ -1356,15 +1374,13 @@ function buildWarManualMemberDocId(row, index=0){
 }
 
 function getCurrentWarDayKey(){
-  const now = new Date();
-  const hour = now.getHours() + now.getMinutes()/60;
-  const dow = now.getDay();
+  const ref = getWarReferenceDate();
+  const dow = ref.getDay();
   if(dow === 4) return 'thu';
-  if(dow === 5) return hour < 6.5 ? 'thu' : 'fri';
-  if(dow === 6) return hour < 6.5 ? 'fri' : 'sat';
-  if(dow === 0) return hour < 6.5 ? 'sat' : 'sun';
-  if(dow === 1) return hour < 6.5 ? 'sun' : 'sun';
-  return 'thu';
+  if(dow === 5) return 'fri';
+  if(dow === 6) return 'sat';
+  if(dow === 0) return 'sun';
+  return null;
 }
 
 async function saveManualWarOverride(selection, row, payload={}){
