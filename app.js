@@ -610,6 +610,11 @@ function memberMatchesCurrentUser(member){
 function canEditMemberProfile(member){
   return isAdminApp() || memberMatchesCurrentUser(member);
 }
+function canAdjustPointsForMember(member){
+  if(isAdminApp()) return true;
+  if(currentAccessRole() === 'editor' && memberMatchesCurrentUser(member)) return false;
+  return canEditApp();
+}
 function nextPromotedRole(role='Membro'){
   if(role === 'Membro') return 'Ancião';
   if(role === 'Ancião') return 'Co-líder';
@@ -1373,13 +1378,15 @@ async function saveManualWarOverride(selection, row, payload={}){
     const docId = `${new Date().getFullYear()}-${monthNum}-S${Number(selection.week || 1)}`;
     const memberId = buildWarManualMemberDocId(row);
     const dayKey = payload.dayKey || getCurrentWarDayKey();
+    const attacks = Math.max(0, Math.min(4, Number(payload.attacks || 0)));
+    const points = Math.max(0, Number(payload.points || 0));
     const updates = {
-      manualPoints: Number(payload.points || 0),
+      manualPoints: points,
       manualUpdatedAt: serverTimestamp(),
       manualSource: 'admin-override',
       source: 'manual-override'
     };
-    updates[`manual${String(dayKey).charAt(0).toUpperCase()}${String(dayKey).slice(1)}`] = Number(payload.attacks || 0);
+    updates[`manual${String(dayKey).charAt(0).toUpperCase()}${String(dayKey).slice(1)}`] = attacks;
     await setDoc(doc(db,'war_history',docId,'members',memberId), updates, { merge:true });
     await setDoc(doc(db,'war_history',docId), {
       source:'manual-override',
@@ -1387,6 +1394,34 @@ async function saveManualWarOverride(selection, row, payload={}){
       lastSyncOrigin:'manual-override',
       lastSyncReason:'admin-adjust'
     }, { merge:true });
+
+    try{
+      const record = ensureWeekMember(selection.month, Number(selection.week || 1), row.name);
+      const dayMap = { thu:'quinta', fri:'sexta', sat:'sabado', sun:'domingo' };
+      const targetDay = dayMap[dayKey] || 'quinta';
+      record.days[targetDay].attacks = Array.from({length:4}, (_, idx) => idx < attacks);
+      record.days[targetDay].total = attacks;
+      record.days[targetDay].fourFour = attacks === 4;
+      record.livePoints = Math.max(Number(record.livePoints || 0), points);
+      record.liveSource = 'manual-override';
+      record.liveUpdatedAt = new Date().toISOString();
+      recomputeWeekRecord(record);
+      const mirrorKey = `${selection.month}-${selection.week}`;
+      if(WAR_AUTO_MIRROR_CACHE?.has(mirrorKey)){
+        const cacheRows = (WAR_AUTO_MIRROR_CACHE.get(mirrorKey) || []).map(item => {
+          if(String(item.name || '').trim().toLowerCase() !== String(row.name || '').trim().toLowerCase()) return item;
+          const next = { ...item, [dayKey]: attacks };
+          next.total = Math.max(Number(next.total || 0), Number(next.thu || 0) + Number(next.fri || 0) + Number(next.sat || 0) + Number(next.sun || 0));
+          next.points = Math.max(Number(next.points || 0), points);
+          next.source = 'manual-override';
+          return next;
+        });
+        WAR_AUTO_MIRROR_CACHE.set(mirrorKey, cacheRows);
+      }
+      saveState();
+    }catch(localErr){
+      console.warn('saveManualWarOverride local reflect', localErr);
+    }
     return true;
   }catch(err){
     console.warn('saveManualWarOverride', err);
@@ -1627,7 +1662,7 @@ function ensureWarAdjustModal(){
       </div>
       <div class="war-adjust-body">
         <label class="war-adjust-label">
-          <span>Dia a ajustar</span>
+          <span>Dia da guerra</span>
           <select id="warAdjustDay" class="war-adjust-input">
             <option value="thu">Quinta</option>
             <option value="fri">Sexta</option>
@@ -1654,15 +1689,6 @@ function ensureWarAdjustModal(){
     </div>
   `;
   document.body.appendChild(modal);
-  modal.addEventListener('change', (e) => {
-    const daySel = e.target.closest('#warAdjustDay');
-    if(!daySel) return;
-    const payload = modal._payload || null;
-    if(!payload?.row) return;
-    const dayKey = String(daySel.value || 'thu');
-    const attacks = modal.querySelector('#warAdjustAttacks');
-    if(attacks) attacks.value = String(Math.max(0, Math.min(4, Number(payload.row?.[dayKey] || 0))));
-  });
   modal.addEventListener('click', async (e) => {
     if(e.target.closest('[data-war-adjust-close="1"]')){
       closeWarAdjustModal();
@@ -1674,20 +1700,31 @@ function ensureWarAdjustModal(){
       if(!payload) return;
       saveBtn.disabled = true;
       try{
-        const dayKey = String(document.getElementById('warAdjustDay')?.value || payload.dayKey || 'thu');
+        const selectedDay = String(document.getElementById('warAdjustDay')?.value || payload.dayKey || 'thu');
         const attacks = Math.max(0, Math.min(4, Number(document.getElementById('warAdjustAttacks')?.value || 0)));
         const points = Math.max(0, Number(document.getElementById('warAdjustPoints')?.value || 0));
-        const ok = await saveManualWarOverride(payload.selection, payload.row, { dayKey, attacks, points });
+        const ok = await saveManualWarOverride(payload.selection, payload.row, { dayKey: selectedDay, attacks, points });
         if(ok){
           closeWarAdjustModal();
           showToast('Ajuste manual salvo.');
-          await renderWarAutoView({ force:false, silent:true });
-          await renderWarRankingView(true);
+          await renderWarAutoView({ force:true, silent:true });
+          render();
         }else{
           showToast('Não foi possível salvar o ajuste manual.', 'error');
         }
       }finally{
         saveBtn.disabled = false;
+      }
+    }
+  });
+  modal.addEventListener('change', (e) => {
+    if(e.target && e.target.id === 'warAdjustDay'){
+      const payload = modal._payload || null;
+      const dayVal = String(e.target.value || 'thu');
+      if(payload){
+        payload.dayKey = dayVal;
+        const attacks = modal.querySelector('#warAdjustAttacks');
+        if(attacks) attacks.value = String(Math.max(0, Math.min(4, Number(payload.row?.[dayVal] || 0))));
       }
     }
   });
@@ -1709,11 +1746,12 @@ function openWarAdjustModal(row, selection, dayKey){
   const attacks = modal.querySelector('#warAdjustAttacks');
   const points = modal.querySelector('#warAdjustPoints');
   const meta = modal.querySelector('#warAdjustMeta');
+  const selectedDay = String(dayKey || 'thu');
   if(title) title.textContent = row?.name || 'Atualizar membro';
-  if(day) day.value = String(dayKey || 'thu');
-  if(attacks) attacks.value = String(Math.max(0, Math.min(4, Number(row?.[dayKey] || 0))));
+  if(day) day.value = selectedDay;
+  if(attacks) attacks.value = String(Math.max(0, Math.min(4, Number(row?.[selectedDay] || 0))));
   if(points) points.value = String(Number(row?.points || row?.livePoints || 0) || 0);
-  if(meta) meta.textContent = 'Contingência visível só para admin • escolha o dia que deseja corrigir';
+  if(meta) meta.textContent = `Ajuste visível só para admin • você pode alterar qualquer dia da semana`;
   modal.classList.remove('hidden');
 }
 
@@ -1910,7 +1948,7 @@ async function renderWarAutoView(options = {}){
                 <h4>${esc(member.name || member.playerTag || 'Sem nome')} ${memberMatchesCurrentUser(linkedMember) ? '<span class="self-badge">VOCÊ</span>' : ''}</h4>
                 <div class="war-auto-summary-left">
                   <strong class="war-auto-total-value">${Number(member.total || 0)}/16</strong>
-                  <span class="chip ${statusClass}">${statusLabel}</span>${statusNote}${points ? `<span class="war-auto-live-pill ${isRisk ? 'bad' : ''}">${points.toLocaleString('pt-BR')} pts</span>` : ''}${isAdminApp() ? `<button class="war-adjust-btn" type="button" data-war-adjust='${esc(JSON.stringify({name: member.name || '', playerTag: member.playerTag || '', role, thu: Number(member.thu||0), fri: Number(member.fri||0), sat: Number(member.sat||0), sun: Number(member.sun||0), total: Number(member.total||0), points: Number(points||0)}))}'>Ajuste manual</button>` : ''}
+                  <span class="chip ${statusClass}">${statusLabel}</span>${statusNote}${points ? `<span class="war-auto-live-pill ${isRisk ? 'bad' : ''}">${points.toLocaleString('pt-BR')} pts</span>` : ''}${canAdjustPointsForMember({ name: member.name || '', playerTag: member.playerTag || '', role }) ? `<button class="war-adjust-btn" type="button" data-war-adjust='${esc(JSON.stringify({name: member.name || '', playerTag: member.playerTag || '', role, thu: Number(member.thu||0), fri: Number(member.fri||0), sat: Number(member.sat||0), sun: Number(member.sun||0), total: Number(member.total||0), points: Number(points||0)}))}'>Ajuste manual</button>` : ''}
                 </div>
               </div>
               <button class="war-auto-toggle" type="button" data-war-auto-toggle="${esc(cardKey)}" aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="${esc(bodyId)}" title="${expanded ? 'Recolher detalhes' : 'Expandir detalhes'}"><span class="war-auto-chevron">${expanded ? '▾' : '▸'}</span></button>
@@ -3251,6 +3289,7 @@ function createMemberFromModal(){
 }
 function toggleAttack(payload){
   const [name, week, day, idx] = encodedParts(payload, 4);
+  if(!canAdjustPointsForMember({ name })) return;
   const record = ensureWeekMember(state.meta.currentMonth, Number(week), name);
   record.days[day].attacks[Number(idx)] = !record.days[day].attacks[Number(idx)];
   recomputeWeekRecord(record);
@@ -3259,6 +3298,7 @@ function toggleAttack(payload){
 }
 function toggleParticipation(payload){
   const [name, week] = encodedParts(payload, 2);
+  if(!canAdjustPointsForMember({ name })) return;
   const record = ensureTournamentMember(state.meta.currentMonth, name);
   const row = record.weeks[Number(week)-1];
   row.participated = !row.participated;
@@ -3268,6 +3308,7 @@ function toggleParticipation(payload){
 }
 function setTournamentPosition(payload, value){
   const [name, week] = encodedParts(payload, 2);
+  if(!canAdjustPointsForMember({ name })) return;
   const record = ensureTournamentMember(state.meta.currentMonth, name);
   const row = record.weeks[Number(week)-1];
   const position = value ? Number(value) : null;
@@ -3279,6 +3320,7 @@ function setTournamentPosition(payload, value){
 }
 function updatePosition(payload, value){
   const [name, week] = encodedParts(payload, 2);
+  if(!canAdjustPointsForMember({ name })) return;
   const record = ensureTournamentMember(state.meta.currentMonth, name);
   const row = record.weeks[Number(week)-1];
   row.position = value ? Number(value) : null;
@@ -3645,11 +3687,6 @@ function bind(){
     const manualBtn = e.target.closest('[data-war-adjust]');
     if(manualBtn){
       try{ await promptWarOverride(JSON.parse(manualBtn.dataset.warAdjust || '{}'), 'war-auto'); }catch(err){ console.warn('manual adjust parse', err); }
-      return;
-    }
-    const rankingBtn = e.target.closest('[data-war-ranking-adjust]');
-    if(rankingBtn){
-      try{ await promptWarOverride(JSON.parse(rankingBtn.dataset.warRankingAdjust || '{}'), 'war-ranking'); }catch(err){ console.warn('ranking adjust parse', err); }
       return;
     }
   });

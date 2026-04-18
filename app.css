@@ -4265,4 +4265,6 @@ button{transition:transform .16s ease, box-shadow .18s ease, filter .18s ease}bu
 .war-adjust-meta{font-size:.9rem;color:#96a1c8;}
 .war-adjust-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;}
 
-#warAdjustDay{margin-bottom:0;}
+.war-adjust-body{display:grid;gap:12px}
+.war-adjust-input{width:100%}
+.war-adjust-dialog{max-width:420px}
