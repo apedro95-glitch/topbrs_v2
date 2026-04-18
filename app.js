@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.8.5 Oficial Auto';
+const appVersion = 'V2.0.8.6 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -945,22 +945,23 @@ function ensureWarHistoryMirror(){
 }
 function setWarHistoryMirrorRows(month, week, rows=[]){
   const mirror = ensureWarHistoryMirror();
-  const key = canonicalMonthKey(month);
+  const key = canonicalMonthKey(month) || String(month || '').trim().toUpperCase();
   mirror[key] ||= {};
   mirror[key][String(week)] = Array.isArray(rows) ? rows.map(r => ({...r})) : [];
 }
 function getWarHistoryMirrorRows(month, week){
   const mirror = ensureWarHistoryMirror();
-  const key = canonicalMonthKey(month);
+  const key = canonicalMonthKey(month) || String(month || '').trim().toUpperCase();
   return Array.isArray(mirror?.[key]?.[String(week)]) ? mirror[key][String(week)].map(r => ({...r})) : [];
 }
 function clearFutureWarHistoryMirror(){
   const current = getRealCurrentWarSelection();
   const monthOrder = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
-  const currentMonthIndex = monthOrder.indexOf(canonicalMonthKey(current.month));
+  const currentMonthNum = Number(monthToNumber(current.month) || 0);
   const mirror = ensureWarHistoryMirror();
   for(const month of monthOrder){
-    if(monthOrder.indexOf(month) > currentMonthIndex){
+    const monthNum = Number(monthToNumber(month) || 0);
+    if(currentMonthNum > 0 && monthNum > currentMonthNum){
       mirror[month] = {'1':[],'2':[],'3':[],'4':[]};
     }
   }
@@ -1003,7 +1004,7 @@ function buildWeekRecordFromMirrorRows(memberName, rows=[]){
 }
 
 function ensureMonth(month){
-  const key = canonicalMonthKey(month);
+  const key = canonicalMonthKey(month) || String(month || '').trim().toUpperCase();
   state.months[key] ||= {weeks:{},tournament:{},summaryOriginal:{}};
   state.goals[key] ||= {attacks:1200,tournament:80};
   for(let week=1;week<=4;week++){
