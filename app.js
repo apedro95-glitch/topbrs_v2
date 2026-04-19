@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.9.4 Oficial Auto';
+const appVersion = 'V2.0.9.7 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -453,6 +453,10 @@ function mergeWarAutoRows(manualRows, apiRows){
 
 const state = loadState();
 state.ui ||= {};
+state.notifications ||= {};
+state.notifications.memberAlerts ||= [];
+state.ui.seenRealtimeNotificationIds ||= {};
+state.ui.activeNotificationId ||= '';
 state.ui.lastSyncAt ||= new Date().toISOString();
 state.ui.warAutoExpanded ||= {};
 const ui = {
@@ -539,7 +543,19 @@ const ui = {
   vaultAccessForm: $('#vaultAccessForm'),
   vaultPasswordInput: $('#vaultPasswordInput'),
   vaultAccessError: $('#vaultAccessError'),
-  vaultAccessCancelBtn: $('#vaultAccessCancelBtn')
+  vaultAccessCancelBtn: $('#vaultAccessCancelBtn'),
+  drawerNotificationBtn: $('#drawerNotificationBtn'),
+  drawerNotificationBadge: $('#drawerNotificationBadge'),
+  alertComposerModal: $('#alertComposerModal'),
+  alertComposerTitle: $('#alertComposerTitle'),
+  alertComposerBody: $('#alertComposerBody'),
+  notificationCenterModal: $('#notificationCenterModal'),
+  notificationCenterMeta: $('#notificationCenterMeta'),
+  notificationCenterList: $('#notificationCenterList'),
+  memberAlertModal: $('#memberAlertModal'),
+  memberAlertTitle: $('#memberAlertTitle'),
+  memberAlertMessage: $('#memberAlertMessage'),
+  memberAlertMeta: $('#memberAlertMeta')
 };
 
 let rankMode = 'elite';
@@ -549,6 +565,15 @@ const VAULT_PASSWORD = 'liderestopbrs';
 setupDeckFilters();
 const VAULT_SESSION_KEY = 'topbrs-vault-unlocked';
 let lastNonVaultView = 'arenaView';
+
+let __topbrsRemoteNotifications = [];
+let __topbrsRemotePresence = {};
+let __topbrsNotificationsReady = false;
+let __topbrsPresenceReady = false;
+let __topbrsNotifUnsub = null;
+let __topbrsPresenceUnsub = null;
+let __topbrsPresenceHeartbeat = null;
+
 
 const viewLabels = {
   arenaView:'Arena 🏟️',
@@ -1201,6 +1226,328 @@ function renderHubRiskView(){
     </article>
   `).join('') || '<div class="empty">Nenhum dado para exibir.</div>';
 }
+
+
+const SMART_ALERT_TEMPLATES = {
+  excellent:{ key:'excellent', label:'Desempenho Excelente 🔥', title:'Desempenho Excelente 🔥', tone:'good', message:'Parabéns por ótimos resultados na war, nós valorizamos quem contribui e ajuda o clã a crescer mais e mais! Parabéns 🎉' },
+  good:{ key:'good', label:'Desempenho Bom 🎊', title:'Desempenho Bom 🎊', tone:'blue', message:'Parabéns pelo desempenho, sabemos que você é capaz de mais 🙏🏼' },
+  observation:{ key:'observation', label:'Observação 👀', title:'Observação 👀', tone:'warn', message:'Sabemos que você pode melhorar, não deixe de ajudar nas guerras, você está em observação… Caso receba outro alerta você está correndo risco! 😫' },
+  charge:{ key:'charge', label:'Cobrança 🚨‼️', title:'Cobrança 🚨‼️', tone:'bad', message:'Porfavor, você está deixando de fazer o principal… contribuir na WAR e ficar inativo por muito tempo. Após mais dois alertas de cobrança você será punido! 😡' }
+};
+
+function normalizeAlertName(value=''){
+  return normalizeMatchText(String(value || '').trim());
+}
+function normalizeAlertTag(value=''){
+  return normalizePlayerTag(String(value || '').trim());
+}
+function getMemberAlertsStore(){
+  state.notifications ||= {};
+  state.notifications.memberAlerts ||= [];
+  return state.notifications.memberAlerts;
+}
+function getRealtimeUserKey(){
+  return String(currentAccessUid() || normalizeAlertTag(currentAccessPlayerTag()) || currentAccessEmail() || normalizeAlertName(currentAccessLinkedMemberName()) || normalizeAlertName(currentAccessNick()) || 'anon');
+}
+function buildAlertRecipientKeys(member={}){
+  const keys = new Set();
+  const tag = normalizeAlertTag(member.playerTag || member.tag || '');
+  const name = normalizeAlertName(member.name || member.nick || '');
+  if(tag) keys.add(tag);
+  if(name) keys.add(name);
+  return Array.from(keys);
+}
+function currentUserAlertKeys(){
+  const keys = new Set();
+  const linked = typeof resolveCurrentLinkedMember === 'function' ? (resolveCurrentLinkedMember() || {}) : {};
+  const authUsers = Array.isArray(state.authUsers) ? state.authUsers : [];
+  const profile = authUsers.find(user => String(user.uid || '') === String(currentAccessUid() || '')) || {};
+  [
+    normalizeAlertTag(currentAccessPlayerTag()),
+    normalizeAlertTag(linked.playerTag || linked.tag || ''),
+    normalizeAlertTag(profile.playerTag || ''),
+    normalizeAlertName(currentAccessLinkedMemberName()),
+    normalizeAlertName(linked.name || linked.nick || ''),
+    normalizeAlertName(window.TOPBRS_ACCESS?.nick || ''),
+    normalizeAlertName(profile.nick || profile.name || ''),
+    normalizeAlertName(currentAccessEmail())
+  ].filter(Boolean).forEach(k => keys.add(k));
+  return Array.from(keys);
+}
+function getCurrentUserAlerts(){
+  const keys = currentUserAlertKeys();
+  const userKey = getRealtimeUserKey();
+  const alerts = Array.isArray(__topbrsRemoteNotifications) && __topbrsRemoteNotifications.length ? __topbrsRemoteNotifications : getMemberAlertsStore();
+  return alerts.filter(item => {
+      const recipients = Array.isArray(item.recipientKeys) ? item.recipientKeys : [];
+      const deleted = Array.isArray(item.deletedBy) ? item.deletedBy : [];
+      return recipients.some(k => keys.includes(k)) && !deleted.includes(userKey);
+    })
+    .sort((a,b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .slice(0,5);
+}
+function isAlertSeen(item={}){
+  const userKey = getRealtimeUserKey();
+  const seenBy = Array.isArray(item.seenBy) ? item.seenBy : [];
+  return Boolean(item.seen) || seenBy.includes(userKey);
+}
+function updateNotificationBadge(){
+  if(!ui.drawerNotificationBtn || !ui.drawerNotificationBadge) return;
+  const unread = getCurrentUserAlerts().filter(item => !isAlertSeen(item)).length;
+  ui.drawerNotificationBadge.textContent = unread > 9 ? '9+' : String(unread);
+  ui.drawerNotificationBadge.classList.toggle('hidden', unread === 0);
+  ui.drawerNotificationBtn.classList.toggle('has-alert', unread > 0);
+}
+function openAlertComposer(member={}){
+  if(!ui.alertComposerModal || !ui.alertComposerBody || !ui.alertComposerTitle) return;
+  ui.alertComposerTitle.textContent = `Notificar ${member.name || 'membro'}`;
+  ui.alertComposerModal.dataset.member = JSON.stringify({ name: member.name || '', playerTag: member.playerTag || member.tag || '' });
+  ui.alertComposerBody.innerHTML = Object.values(SMART_ALERT_TEMPLATES).map(item => `
+    <button type="button" class="alert-template-btn ${item.tone}" data-alert-template="${esc(item.key)}">
+      <strong>${esc(item.label)}</strong>
+      <span>${esc(item.message)}</span>
+    </button>
+  `).join('');
+  ui.alertComposerModal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+function closeAlertComposer(){
+  if(!ui.alertComposerModal) return;
+  ui.alertComposerModal.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+async function ensureRealtimeMessaging(){
+  try{
+    const firebase = window.TOPBRS_FIREBASE;
+    if(!firebase?.app || !firebase?.db){
+      setTimeout(() => ensureRealtimeMessaging(), 1200);
+      return;
+    }
+    const db = firebase.db;
+    const { collection, onSnapshot, query, orderBy, limit, addDoc, updateDoc, doc, serverTimestamp, arrayUnion, setDoc } = await import('https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js');
+    window.__topbrsNotifApi = { collection, onSnapshot, query, orderBy, limit, addDoc, updateDoc, doc, serverTimestamp, arrayUnion, setDoc };
+
+    if(!__topbrsNotifUnsub){
+      const notifQuery = query(collection(db, 'topbrs_notifications'), orderBy('createdAt', 'desc'), limit(100));
+      __topbrsNotifUnsub = onSnapshot(notifQuery, snapshot => {
+        const prevIds = new Set(__topbrsRemoteNotifications.map(item => String(item.id || '')));
+        __topbrsRemoteNotifications = snapshot.docs.map(entry => {
+          const data = entry.data() || {};
+          return {
+            id: entry.id,
+            recipientKeys: Array.isArray(data.recipientKeys) ? data.recipientKeys : [],
+            memberName: data.memberName || '',
+            playerTag: normalizeAlertTag(data.playerTag || ''),
+            title: data.title || 'Alerta',
+            message: data.message || '',
+            tone: data.tone || 'blue',
+            createdAt: data.createdAt?.toDate?.()?.toISOString?.() || data.createdAt || new Date().toISOString(),
+            seenBy: Array.isArray(data.seenBy) ? data.seenBy : [],
+            deletedBy: Array.isArray(data.deletedBy) ? data.deletedBy : []
+          };
+        });
+        const mine = getCurrentUserAlerts();
+        if(__topbrsNotificationsReady){
+          const unseenNew = mine.find(item => !prevIds.has(String(item.id || '')) && !isAlertSeen(item));
+          if(unseenNew){
+            const key = String(unseenNew.id || '');
+            if(document.visibilityState === 'visible'){
+              showToast('Consulte seus alertas 🔔');
+              state.ui.seenRealtimeNotificationIds ||= {};
+              state.ui.seenRealtimeNotificationIds[key] = true;
+            }else if(!state.ui.seenRealtimeNotificationIds?.[key]){
+              openMemberAlertFromItem(unseenNew);
+            }
+          }
+        }
+        __topbrsNotificationsReady = true;
+        updateNotificationBadge();
+        renderNotificationCenter();
+        maybeShowPendingMemberAlert();
+      });
+    }
+
+    if(!__topbrsPresenceUnsub){
+      const presCol = collection(db, 'topbrs_presence');
+      __topbrsPresenceUnsub = onSnapshot(presCol, snapshot => {
+        const next = {};
+        snapshot.forEach(entry => {
+          const data = entry.data() || {};
+          next[entry.id] = {
+            online: Boolean(data.online),
+            memberKeys: Array.isArray(data.memberKeys) ? data.memberKeys : [],
+            lastSeenAt: data.lastSeenAt?.toDate?.()?.getTime?.() || Date.now()
+          };
+        });
+        __topbrsRemotePresence = next;
+        __topbrsPresenceReady = true;
+        if(document.querySelector('.view.active')?.id === 'membersView'){
+          try{ renderMembers(monthContext(canonicalMonthKey(state.meta.currentMonth))); }catch(e){}
+        }
+      });
+    }
+    await syncCurrentPresence('online');
+  }catch(err){
+    console.warn('ensureRealtimeMessaging', err);
+  }
+}
+async function syncCurrentPresence(mode='online'){
+  try{
+    const firebase = window.TOPBRS_FIREBASE;
+    const api = window.__topbrsNotifApi;
+    if(!firebase?.db || !api?.setDoc || !api?.doc) return;
+    const member = typeof resolveCurrentLinkedMember === 'function' ? (resolveCurrentLinkedMember() || {}) : {};
+    const memberKeys = Array.from(new Set([
+      normalizeAlertTag(currentAccessPlayerTag()),
+      normalizeAlertTag(member.playerTag || member.tag || ''),
+      normalizeAlertName(currentAccessLinkedMemberName()),
+      normalizeAlertName(member.name || member.nick || ''),
+      normalizeAlertName(currentAccessNick())
+    ].filter(Boolean)));
+    const presenceId = getRealtimeUserKey().replace(/[.#$/\[\]]/g,'_');
+    await api.setDoc(api.doc(firebase.db, 'topbrs_presence', presenceId), {
+      online: mode === 'online',
+      memberKeys,
+      lastSeenAt: api.serverTimestamp()
+    }, { merge:true });
+  }catch(err){
+    console.warn('syncCurrentPresence', err);
+  }
+}
+function startPresenceHeartbeat(){
+  clearInterval(__topbrsPresenceHeartbeat);
+  syncCurrentPresence(document.visibilityState === 'visible' ? 'online' : 'offline');
+  __topbrsPresenceHeartbeat = setInterval(() => {
+    syncCurrentPresence(document.visibilityState === 'visible' ? 'online' : 'offline');
+  }, 45000);
+}
+async function sendSmartAlert(member={}, templateKey='observation'){
+  const template = SMART_ALERT_TEMPLATES[templateKey];
+  if(!template) return false;
+  const recipientKeys = buildAlertRecipientKeys(member);
+  if(!recipientKeys.length) return false;
+  try{
+    await ensureRealtimeMessaging();
+    const firebase = window.TOPBRS_FIREBASE;
+    const api = window.__topbrsNotifApi;
+    if(!firebase?.db || !api?.addDoc) throw new Error('Firestore indisponível');
+    await api.addDoc(api.collection(firebase.db, 'topbrs_notifications'), {
+      recipientKeys,
+      memberName: member.name || '',
+      playerTag: normalizeAlertTag(member.playerTag || member.tag || ''),
+      title: template.title,
+      message: template.message,
+      tone: template.tone,
+      createdAt: api.serverTimestamp(),
+      seenBy: [],
+      deletedBy: [],
+      sentBy: currentAccessRole()
+    });
+    showToast('Alerta enviado com sucesso.');
+    return true;
+  }catch(err){
+    console.warn('sendSmartAlert', err);
+    showToast('Falha ao enviar alerta.', 'error');
+    return false;
+  }
+}
+function renderNotificationCenter(){
+  if(!ui.notificationCenterList || !ui.notificationCenterMeta) return;
+  const alerts = getCurrentUserAlerts();
+  if(!alerts.length){
+    ui.notificationCenterMeta.textContent = 'Sem alertas recentes';
+    ui.notificationCenterList.innerHTML = '<div class="empty">Sem alertas recentes</div>';
+    updateNotificationBadge();
+    return;
+  }
+  const unread = alerts.filter(item => !isAlertSeen(item)).length;
+  ui.notificationCenterMeta.textContent = `${unread} nova(s) • limite de 5 mensagens`;
+  ui.notificationCenterList.innerHTML = alerts.map(item => `
+    <article class="notif-row glass ${isAlertSeen(item) ? 'seen' : 'unseen'}">
+      <button type="button" class="notif-open" data-open-alert-id="${esc(String(item.id || ''))}">
+        <strong>${esc(item.title || 'Alerta')}</strong>
+        <span>${esc((item.message || '').slice(0,90))}${String(item.message || '').length > 90 ? '…' : ''}</span>
+        <small>${esc(new Date(item.createdAt || Date.now()).toLocaleString('pt-BR'))}</small>
+      </button>
+      <button type="button" class="notif-delete" data-delete-alert-id="${esc(String(item.id || ''))}" title="Excluir">🗑️</button>
+    </article>
+  `).join('');
+  updateNotificationBadge();
+}
+function openNotificationCenter(){
+  if(!ui.notificationCenterModal) return;
+  if(typeof closeDrawer === 'function') closeDrawer();
+  renderNotificationCenter();
+  ui.notificationCenterModal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+function closeNotificationCenter(){
+  if(!ui.notificationCenterModal) return;
+  ui.notificationCenterModal.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+function openMemberAlertFromItem(item){
+  if(!ui.memberAlertModal || !item) return;
+  if(typeof closeDrawer === 'function') closeDrawer();
+  ui.memberAlertModal.dataset.alertId = String(item.id || '');
+  ui.memberAlertTitle.textContent = item.title || 'Notificação';
+  ui.memberAlertMessage.textContent = item.message || 'Você recebeu uma mensagem da liderança.';
+  ui.memberAlertMeta.textContent = `${item.memberName || 'Membro'} • Liderança TopBRS`;
+  ui.memberAlertModal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+async function closeMemberAlert(markSeen=true){
+  if(!ui.memberAlertModal) return;
+  const alertId = String(ui.memberAlertModal.dataset.alertId || '');
+  if(markSeen && alertId){
+    try{
+      const api = window.__topbrsNotifApi;
+      const firebase = window.TOPBRS_FIREBASE;
+      if(api?.updateDoc && firebase?.db){
+        await api.updateDoc(api.doc(firebase.db, 'topbrs_notifications', alertId), {
+          seenBy: api.arrayUnion(getRealtimeUserKey())
+        });
+      }
+    }catch(err){ console.warn('closeMemberAlert', err); }
+  }
+  ui.memberAlertModal.classList.add('hidden');
+  ui.memberAlertModal.dataset.alertId = '';
+  document.body.style.overflow = '';
+  updateNotificationBadge();
+  renderNotificationCenter();
+}
+async function deleteAlertById(id=''){
+  try{
+    const api = window.__topbrsNotifApi;
+    const firebase = window.TOPBRS_FIREBASE;
+    if(api?.updateDoc && firebase?.db){
+      await api.updateDoc(api.doc(firebase.db, 'topbrs_notifications', String(id || '')), {
+        deletedBy: api.arrayUnion(getRealtimeUserKey())
+      });
+    }
+  }catch(err){ console.warn('deleteAlertById', err); }
+}
+function maybeShowPendingMemberAlert(){
+  const pending = getCurrentUserAlerts().find(item => !isAlertSeen(item));
+  if(!pending) return;
+  if(!ui.memberAlertModal || !ui.memberAlertModal.classList.contains('hidden')) return;
+  openMemberAlertFromItem(pending);
+}
+function getPresenceToneForMember(member={}){
+  const keys = buildAlertRecipientKeys(member);
+  const now = Date.now();
+  let latest = null;
+  Object.values(__topbrsRemotePresence || {}).forEach(item => {
+    if(Array.isArray(item.memberKeys) && item.memberKeys.some(k => keys.includes(k))){
+      if(!latest || item.lastSeenAt > latest.lastSeenAt) latest = item;
+    }
+  });
+  if(!latest) return 'offline';
+  if(latest.online && now - Number(latest.lastSeenAt || 0) < 120000) return 'online';
+  if(now - Number(latest.lastSeenAt || 0) < 300000) return 'away';
+  return 'offline';
+}
+
 function renderHubDecisionView(){
   if(!ui.hubDecisionBoard) return;
   const {weeklyRows, month, week} = buildHubContext();
@@ -1211,7 +1558,10 @@ function renderHubDecisionView(){
     <article class="hub-row glass">
       <div class="hub-row-head">
         <strong>${esc(item.member.name)}</strong>
-        <span class="chip ${/promoção/i.test(item.decision) ? 'good' : /expulsão|cobrar/i.test(item.decision) ? 'bad' : 'warn'}">${esc(item.decision)}</span>
+        <div class="hub-row-actions">
+          <button type="button" class="hub-bell-btn" data-open-alert-composer='${esc(JSON.stringify({name:item.member.name || '', playerTag:item.member.playerTag || item.member.tag || ''}))}' title="Enviar alerta">🔔</button>
+          <span class="chip ${/promoção/i.test(item.decision) ? 'good' : /expulsão|cobrar/i.test(item.decision) ? 'bad' : 'warn'}">${esc(item.decision)}</span>
+        </div>
       </div>
       <div class="chips">
         <span class="chip">${item.totalWeek}/16 semana</span>
@@ -2061,6 +2411,9 @@ function toggleWarAutoMember(key){
   renderHubRiskView();
   renderHubDecisionView();
   renderHubClanView();
+  updateNotificationBadge();
+  renderNotificationCenter();
+  maybeShowPendingMemberAlert();
   updateDrawerProfileSummary();
   renderDecksView();
 }
@@ -3033,7 +3386,7 @@ function renderMembers(ctx){
       <article class="member-card ${memberMatchesCurrentUser(member) ? 'is-self' : ''}">
         <div class="member-top">
           <div>
-            <strong>${esc(member.name)} ${memberMatchesCurrentUser(member) ? '<span class="self-badge">VOCÊ</span>' : ''}</strong>
+            <strong class="member-name-with-status">${esc(member.name)} ${memberMatchesCurrentUser(member) ? '<span class="self-badge">VOCÊ</span>' : ''}<span class="status-dot ${getPresenceToneForMember(member)}"></span></strong>
             <div class="mini">${esc(member.role)} • ${member.eligibleTournament ? 'Elegível torneio' : 'Sem torneio'}</div>
           </div>
           <span class="chip ${tone}">${member.status}</span>
@@ -3119,7 +3472,7 @@ function openMemberAction(name){
   if(!member) return;
   ui.memberActionBody.innerHTML = `
     <div class="profile-popover-header user-edit-header">
-      <strong>${esc(member.name)} ${memberMatchesCurrentUser(member) ? '<span class="self-badge">VOCÊ</span>' : ''}</strong>
+      <strong class="member-name-with-status">${esc(member.name)} ${memberMatchesCurrentUser(member) ? '<span class="self-badge">VOCÊ</span>' : ''}<span class="status-dot ${getPresenceToneForMember(member)}"></span></strong>
       <small>${esc(member.role)} • ${esc(member.status)}</small>
     </div>
     <div class="member-action-stack">
@@ -3688,6 +4041,8 @@ function setActiveView(viewId){
   if(viewId === 'hubDecisionView') renderHubDecisionView();
   if(viewId === 'hubClanView') renderHubClanView();
   if(viewId === 'decksView') renderDecksView(false);
+  updateNotificationBadge();
+  updateNotificationBadge();
   if(['arenaView','classificationView','eliteView'].includes(viewId)) bootstrapWarHistoryForArena(false);
   toggleViewMenu(false);
   if(ui.heroSection){ ui.heroSection.classList.toggle('hidden', ['classificationView','vaultView','membersView','usersView','archivedView','warAutoView','warRankingView','membersSyncView','apiLogsView','decksView','hubLeaderView','hubRiskView','hubDecisionView','hubClanView'].includes(viewId)); }
@@ -3802,6 +4157,52 @@ function bind(){
       }else{
         setActiveView(viewBtn.dataset.view);
       }
+      return;
+    }
+    if(e.target.closest('#drawerNotificationBtn')){
+      openNotificationCenter();
+      return;
+    }
+    if(e.target.closest('[data-close-notification-center]')){
+      closeNotificationCenter();
+      return;
+    }
+    if(e.target.closest('[data-close-member-alert]')){
+      closeMemberAlert(true);
+      return;
+    }
+    if(e.target.closest('[data-close-alert-composer]')){
+      closeAlertComposer();
+      return;
+    }
+    const openComposerBtn = e.target.closest('[data-open-alert-composer]');
+    if(openComposerBtn){
+      try{ openAlertComposer(JSON.parse(openComposerBtn.dataset.openAlertComposer || '{}')); }catch(err){}
+      return;
+    }
+    const templateBtn = e.target.closest('[data-alert-template]');
+    if(templateBtn){
+      try{
+        const member = JSON.parse(ui.alertComposerModal?.dataset.member || '{}');
+        if(sendSmartAlert(member, templateBtn.dataset.alertTemplate || 'observation')){
+          closeAlertComposer();
+        }
+      }catch(err){}
+      return;
+    }
+    const notifOpenBtn = e.target.closest('[data-open-alert-id]');
+    if(notifOpenBtn){
+      const item = getCurrentUserAlerts().find(alert => String(alert.id || '') === String(notifOpenBtn.dataset.openAlertId || ''));
+      if(item){
+        closeNotificationCenter();
+        openMemberAlertFromItem(item);
+      }
+      return;
+    }
+    const notifDeleteBtn = e.target.closest('[data-delete-alert-id]');
+    if(notifDeleteBtn){
+      deleteAlertById(notifDeleteBtn.dataset.deleteAlertId || '');
+      return;
     }
     const rankBtn = e.target.closest('[data-rank-mode]');
     if(rankBtn){
@@ -4089,6 +4490,7 @@ function bind(){
   }
 }
 document.addEventListener('visibilitychange', () => {
+  syncCurrentPresence(document.hidden ? 'offline' : 'online');
   if(document.hidden){
     clearWarAutoRefreshTimer();
   }else if(activeViewId === 'warAutoView'){
@@ -4118,6 +4520,8 @@ window.TOPBRS_APP = {
 bind();
 updateTopbarTitle(document.querySelector('.view.active')?.id || 'arenaView');
 render();
+ensureRealtimeMessaging();
+startPresenceHeartbeat();
 bootstrapWarHistoryForArena(true);
 setTimeout(() => bootstrapWarHistoryForArena(true), 1800);
 if((document.querySelector('.view.active')?.id || 'arenaView') === 'warAutoView'){ startWarAutoRefreshTimer(); }
@@ -4157,3 +4561,6 @@ function fixHeaderOverlap(){
 
 window.addEventListener('load', fixHeaderOverlap);
 window.addEventListener('resize', fixHeaderOverlap);
+
+window.addEventListener('pagehide', () => { syncCurrentPresence('offline'); });
+window.addEventListener('beforeunload', () => { syncCurrentPresence('offline'); });

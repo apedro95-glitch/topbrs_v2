@@ -525,9 +525,15 @@
       <div class="drawer-panel glass">
         <div class="drawer-head">
           <h3>Menu</h3>
+          <div class="drawer-head-actions">
+          <button id="drawerNotificationBtn" class="profile-menu-btn notification-bell-btn" type="button" aria-label="Notificações">
+            <span>🔔</span>
+            <span id="drawerNotificationBadge" class="notification-badge hidden">0</span>
+          </button>
           <button id="profileMenuBtn" class="profile-menu-btn" type="button" aria-label="Perfil">
             <span id="profileAvatar" class="profile-avatar">👤</span>
           </button>
+        </div>
         </div>
         <div id="drawerProfileSummary" class="drawer-profile-summary hidden"></div>
         <div class="drawer-menu">
@@ -564,9 +570,46 @@
     <footer class="app-footer">
       <small>•</small>
       <small class="creator-credit">Criador: Anderson Pedro • Todos direitos reservado ®️</small>
-      <small class="footer-version">V2.0.9.4 Oficial Auto</small>
+      <small class="footer-version">V2.0.9.7 Oficial Auto</small>
     </footer>
+  
+  <div id="alertComposerModal" class="modal hidden">
+    <div class="modal-card glass narrow alert-composer-modal">
+      <button class="modal-close" data-close-alert-composer>×</button>
+      <div class="stack">
+        <p class="eyebrow">ALERTA INDIVIDUAL</p>
+        <h3 id="alertComposerTitle">Notificar membro</h3>
+        <div id="alertComposerBody" class="alert-template-list"></div>
+      </div>
+    </div>
   </div>
+
+  <div id="notificationCenterModal" class="modal hidden">
+    <div class="modal-card glass narrow notification-center-modal">
+      <button class="modal-close" data-close-notification-center>×</button>
+      <div class="stack">
+        <p class="eyebrow">CENTRAL DE NOTIFICAÇÕES</p>
+        <h3>Mensagens da liderança 🔔</h3>
+        <div id="notificationCenterMeta" class="helper">Sem alertas recentes</div>
+        <div id="notificationCenterList" class="notification-center-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="memberAlertModal" class="modal hidden">
+    <div class="modal-card glass narrow member-alert-modal">
+      <button class="modal-close" data-close-member-alert>×</button>
+      <div class="stack">
+        <p class="eyebrow">ALERTA DA LIDERANÇA</p>
+        <h3 id="memberAlertTitle">Notificação</h3>
+        <p id="memberAlertMessage" class="member-alert-message">Você recebeu uma mensagem.</p>
+        <div id="memberAlertMeta" class="helper">Hub dos Líderes</div>
+        <button type="button" class="primary" data-close-member-alert>Entendi</button>
+      </div>
+    </div>
+  </div>
+
+</div>
 
     <button id="backToTopBtn" class="back-to-top" aria-label="Voltar ao topo">↑</button>
 
