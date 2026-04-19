@@ -273,7 +273,91 @@
         </section>
       </section>
 
-      <section id="tournamentView" class="view">
+      
+      <section id="hubLeaderView" class="view hidden">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Liderança</p>
+              <h3>Hub dos Líderes 🧑🏼‍💻</h3>
+            </div>
+          </div>
+          <div id="hubLeaderSummary" class="hub-grid"></div>
+          <div class="hub-actions-grid">
+            <button class="hub-nav-btn glass" data-view="hubRiskView" type="button">
+              <small>Prioridade</small>
+              <strong>Risco automático</strong>
+              <span>Análise combinada do dia + semana</span>
+            </button>
+            <button class="hub-nav-btn glass" data-view="hubDecisionView" type="button">
+              <small>Sugestões</small>
+              <strong>Decisões automáticas</strong>
+              <span>Quem observar, cobrar e reconhecer</span>
+            </button>
+            <button class="hub-nav-btn glass" data-view="hubClanView" type="button">
+              <small>Gestão</small>
+              <strong>Acompanhamento do clã</strong>
+              <span>Resumo do mês e da semana</span>
+            </button>
+          </div>
+        </section>
+      </section>
+
+      <section id="hubRiskView" class="view hidden">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Hub dos Líderes</p>
+              <h3>Risco automático</h3>
+            </div>
+            <div class="inline-actions"><button class="ghost small" data-view="hubLeaderView" type="button">Voltar</button></div>
+          </div>
+          <div id="hubRiskMeta" class="war-ranking-meta">Preparando análise de risco...</div>
+          <div id="hubRiskBoard" class="hub-list"></div>
+        </section>
+      </section>
+
+      <section id="hubDecisionView" class="view hidden">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Hub dos Líderes</p>
+              <h3>Decisões automáticas</h3>
+            </div>
+            <div class="inline-actions"><button class="ghost small" data-view="hubLeaderView" type="button">Voltar</button></div>
+          </div>
+          <div id="hubDecisionMeta" class="war-ranking-meta">Sugestões automáticas para liderança.</div>
+          <div id="hubDecisionBoard" class="hub-list"></div>
+        </section>
+      </section>
+
+      <section id="hubClanView" class="view hidden">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Hub dos Líderes</p>
+              <h3>Acompanhamento do clã</h3>
+            </div>
+            <div class="inline-actions"><button class="ghost small" data-view="hubLeaderView" type="button">Voltar</button></div>
+          </div>
+          <div class="hero-controls hub-controls">
+            <div class="hero-picker">
+              <span class="picker-label">Mês</span>
+              <div id="hubMonthChipBar" class="hero-chipbar month-chipbar"></div>
+            </div>
+            <div class="hero-picker">
+              <span class="picker-label">Semana</span>
+              <div id="hubWeekChipBar" class="hero-chipbar week-chipbar"></div>
+            </div>
+          </div>
+          <div id="hubClanMeta" class="war-ranking-meta">Resumo do mês e da semana selecionada.</div>
+          <div id="hubClanSummary" class="hub-grid"></div>
+          <div id="hubClanBoard" class="hub-list"></div>
+        </section>
+      </section>
+
+
+<section id="tournamentView" class="view">
         <div class="split two">
           <section class="panel glass">
             <div class="panel-head">
@@ -452,6 +536,7 @@
           <button class="drawer-link" data-view="warRankingView">Ranking Guerra ⚔️</button>
           <button class="drawer-link hidden" data-view="membersSyncView">Membros Sync 🔄</button>
           <button class="drawer-link hidden" data-view="apiLogsView">Logs API 🛰️</button>
+          <button class="drawer-link hidden" data-view="hubLeaderView">Hub dos Líderes 🧑🏼‍💻</button>
           <button class="drawer-link" data-view="tournamentView">Torneio 🏆</button>
           <button class="drawer-link" data-view="classificationView">Classificação 📊</button>
           <button class="drawer-link" data-view="eliteView">Elite 👑</button>
@@ -479,7 +564,7 @@
     <footer class="app-footer">
       <small>•</small>
       <small class="creator-credit">Criador: Anderson Pedro • Todos direitos reservado ®️</small>
-      <small class="footer-version">V2.0.9.3 Oficial Auto</small>
+      <small class="footer-version">V2.0.9.4 Oficial Auto</small>
     </footer>
   </div>
 

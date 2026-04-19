@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.9.3 Oficial Auto';
+const appVersion = 'V2.0.9.4 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -483,6 +483,16 @@ const ui = {
   apiLogsMeta: $('#apiLogsMeta'),
   apiLogsBoard: $('#apiLogsBoard'),
   apiLogsRefreshBtn: $('#apiLogsRefreshBtn'),
+  hubLeaderSummary: $('#hubLeaderSummary'),
+  hubRiskMeta: $('#hubRiskMeta'),
+  hubRiskBoard: $('#hubRiskBoard'),
+  hubDecisionMeta: $('#hubDecisionMeta'),
+  hubDecisionBoard: $('#hubDecisionBoard'),
+  hubMonthChipBar: $('#hubMonthChipBar'),
+  hubWeekChipBar: $('#hubWeekChipBar'),
+  hubClanMeta: $('#hubClanMeta'),
+  hubClanSummary: $('#hubClanSummary'),
+  hubClanBoard: $('#hubClanBoard'),
   warAutoPrepareBtn: $('#warAutoPrepareBtn'),
   warAutoMonthChipBar: $('#warAutoMonthChipBar'),
   warAutoWeekChipBar: $('#warAutoWeekChipBar'),
@@ -547,6 +557,10 @@ const viewLabels = {
   warRankingView:'Ranking Guerra ⚔️',
   membersSyncView:'Membros Sync 🔄',
   apiLogsView:'Logs API 🛰️',
+  hubLeaderView:'Hub dos Líderes 🧑🏼‍💻',
+  hubRiskView:'Risco automático ⚠️',
+  hubDecisionView:'Decisões automáticas 🧠',
+  hubClanView:'Acompanhamento do clã 📊',
   tournamentView:'Torneio 🏆',
   classificationView:'Classificação 📊',
   eliteView:'Elite 👑',
@@ -1074,6 +1088,173 @@ function computeTournamentPoints(position, participated){
   else if(position === 3) points += Number(state.meta.tournamentRules.third || 0);
   return points;
 }
+
+function hubCurrentDayInfo(){
+  const key = getCurrentWarDayKey();
+  const map = {thu:{label:'Quinta',expected:4,index:0},fri:{label:'Sexta',expected:8,index:1},sat:{label:'Sábado',expected:12,index:2},sun:{label:'Domingo',expected:16,index:3}};
+  return map[key] || {label:'Fora da guerra', expected:0, index:-1};
+}
+function getHubSelectedMonth(){
+  state.ui ||= {};
+  state.ui.hubMonth ||= canonicalMonthKey(state.meta.currentMonth);
+  return canonicalMonthKey(state.ui.hubMonth);
+}
+function getHubSelectedWeek(){
+  state.ui ||= {};
+  state.ui.hubWeek ||= Number(state.meta.currentWeek || 1);
+  return Math.max(1, Math.min(4, Number(state.ui.hubWeek || 1)));
+}
+function buildHubContext(){
+  const month = getHubSelectedMonth();
+  const week = getHubSelectedWeek();
+  const ctx = monthContext(month);
+  const dayInfo = hubCurrentDayInfo();
+  const weeklyRows = ctx.summaries.map(item => {
+    const w = item.weekly[week-1];
+    const totalsByDay = [w.days.quinta.total, w.days.sexta.total, w.days.sabado.total, w.days.domingo.total];
+    const todayTotal = dayInfo.index >= 0 ? totalsByDay[dayInfo.index] : 0;
+    const expectedWeek = dayInfo.expected || 0;
+    const totalWeek = Number(w.attacksTotal || 0);
+    let riskTone = 'safe';
+    let riskLabel = 'Seguro';
+    if(dayInfo.expected > 0){
+      if(todayTotal === 0 && totalWeek <= Math.max(0, expectedWeek-4)){
+        riskTone = 'high'; riskLabel = 'Risco alto';
+      }else if(totalWeek < expectedWeek || todayTotal < 4){
+        riskTone = 'medium'; riskLabel = 'Risco médio';
+      }else if(totalWeek >= expectedWeek && todayTotal === 4){
+        riskTone = 'good'; riskLabel = 'Em dia';
+      }
+      if(expectedWeek === 16 && !w.clinchit){
+        riskTone = totalWeek <= 8 ? 'high' : (riskTone === 'good' ? 'medium' : riskTone);
+        if(totalWeek <= 8) riskLabel = 'Perdeu clinchit';
+      }
+    }
+    let decision = 'Observar';
+    if(riskTone === 'high') decision = 'Cobrar';
+    else if(riskTone === 'good' && item.scoreElite >= 10) decision = 'Bom desempenho';
+    if(item.suggestion === 'PROMOVER') decision = 'Possível promoção';
+    if(item.suggestion === 'EXPULSAR') decision = 'Possível expulsão';
+    return {
+      member: item.member,
+      summary: item,
+      week: w,
+      todayTotal,
+      totalWeek,
+      expectedWeek,
+      riskTone,
+      riskLabel,
+      decision
+    };
+  });
+  weeklyRows.sort((a,b) => {
+    const toneWeight = {high:3, medium:2, safe:1, good:0};
+    return (toneWeight[b.riskTone] - toneWeight[a.riskTone]) || (b.totalWeek - a.totalWeek) || a.member.name.localeCompare(b.member.name,'pt-BR');
+  });
+  return {month, week, ctx, dayInfo, weeklyRows};
+}
+function renderHubMonthWeekControls(){
+  const month = getHubSelectedMonth();
+  const week = getHubSelectedWeek();
+  if(ui.hubMonthChipBar){
+    ui.hubMonthChipBar.innerHTML = (seedData?.meta?.months || Object.keys(monthLabels)).map(m => `
+      <button type="button" class="hero-chip ${canonicalMonthKey(m)===month ? 'active' : ''}" data-hub-month="${esc(canonicalMonthKey(m))}">${esc(monthLabel(m).slice(0,3))}</button>
+    `).join('');
+  }
+  if(ui.hubWeekChipBar){
+    ui.hubWeekChipBar.innerHTML = [1,2,3,4].map(w => `
+      <button type="button" class="hero-chip ${w===week ? 'active' : ''}" data-hub-week="${w}">S${w}</button>
+    `).join('');
+  }
+}
+function renderHubLeaderView(){
+  if(!ui.hubLeaderSummary) return;
+  const {dayInfo, weeklyRows, month, week} = buildHubContext();
+  const high = weeklyRows.filter(r => r.riskTone === 'high').length;
+  const medium = weeklyRows.filter(r => r.riskTone === 'medium').length;
+  const zeroToday = weeklyRows.filter(r => r.todayTotal === 0).length;
+  const fullToday = weeklyRows.filter(r => r.todayTotal === 4).length;
+  ui.hubLeaderSummary.innerHTML = `
+    <article class="hub-card glass"><small>Período</small><strong>${esc(monthLabel(month))} • S${week}</strong><span>${esc(dayInfo.label)}</span></article>
+    <article class="hub-card glass"><small>Risco alto</small><strong>${high}</strong><span>Membros para cobrar agora</span></article>
+    <article class="hub-card glass"><small>Risco médio</small><strong>${medium}</strong><span>Atrasados na semana</span></article>
+    <article class="hub-card glass"><small>4/4 hoje</small><strong>${fullToday}</strong><span>${zeroToday} zerados hoje</span></article>
+  `;
+}
+function renderHubRiskView(){
+  if(!ui.hubRiskBoard) return;
+  const {dayInfo, weeklyRows, month, week} = buildHubContext();
+  if(ui.hubRiskMeta){
+    ui.hubRiskMeta.textContent = `${monthLabel(month)} • S${week} • ${dayInfo.label} • análise combinada do dia e da semana.`;
+  }
+  ui.hubRiskBoard.innerHTML = weeklyRows.map(item => `
+    <article class="hub-row glass ${item.riskTone}">
+      <div class="hub-row-head">
+        <strong>${esc(item.member.name)}</strong>
+        <span class="chip ${item.riskTone === 'high' ? 'bad' : item.riskTone === 'medium' ? 'warn' : 'good'}">${esc(item.riskLabel)}</span>
+      </div>
+      <div class="chips">
+        <span class="chip blue">${item.todayTotal}/4 hoje</span>
+        <span class="chip">${item.totalWeek}/${item.expectedWeek || 16} esperado</span>
+        <span class="chip">${item.summary.attacksMonth} ataques no mês</span>
+      </div>
+    </article>
+  `).join('') || '<div class="empty">Nenhum dado para exibir.</div>';
+}
+function renderHubDecisionView(){
+  if(!ui.hubDecisionBoard) return;
+  const {weeklyRows, month, week} = buildHubContext();
+  if(ui.hubDecisionMeta){
+    ui.hubDecisionMeta.textContent = `${monthLabel(month)} • S${week} • recomendações para liderança.`;
+  }
+  ui.hubDecisionBoard.innerHTML = weeklyRows.map(item => `
+    <article class="hub-row glass">
+      <div class="hub-row-head">
+        <strong>${esc(item.member.name)}</strong>
+        <span class="chip ${/promoção/i.test(item.decision) ? 'good' : /expulsão|cobrar/i.test(item.decision) ? 'bad' : 'warn'}">${esc(item.decision)}</span>
+      </div>
+      <div class="chips">
+        <span class="chip">${item.totalWeek}/16 semana</span>
+        <span class="chip">${item.summary.scoreElite} elite</span>
+        <span class="chip blue">${esc(item.summary.suggestion)}</span>
+      </div>
+    </article>
+  `).join('') || '<div class="empty">Nenhum dado para exibir.</div>';
+}
+function renderHubClanView(){
+  if(!ui.hubClanSummary || !ui.hubClanBoard) return;
+  renderHubMonthWeekControls();
+  const {ctx, month, week, weeklyRows} = buildHubContext();
+  const weeklySorted = [...weeklyRows].sort((a,b) => b.totalWeek - a.totalWeek || a.member.name.localeCompare(b.member.name,'pt-BR'));
+  const top = weeklySorted[0];
+  const low = [...weeklySorted].filter(r => r.totalWeek >= 0).sort((a,b) => a.totalWeek - b.totalWeek || a.member.name.localeCompare(b.member.name,'pt-BR'))[0];
+  const monthGoal = state.goals?.[month]?.attacks || 1200;
+  const weekTotal = weeklyRows.reduce((acc, item) => acc + item.totalWeek, 0);
+  const weekGoal = activeMembers().length * 16;
+  if(ui.hubClanMeta){
+    ui.hubClanMeta.textContent = `${monthLabel(month)} • S${week} • visão do mês + acompanhamento semanal.`;
+  }
+  ui.hubClanSummary.innerHTML = `
+    <article class="hub-card glass"><small>Ataques do mês</small><strong>${ctx.attackTotalClan}</strong><span>Meta ${monthGoal}</span></article>
+    <article class="hub-card glass"><small>Ataques da semana</small><strong>${weekTotal}</strong><span>Meta ${weekGoal}</span></article>
+    <article class="hub-card glass"><small>Mais ataca</small><strong>${esc(top?.member?.name || '—')}</strong><span>${top ? top.totalWeek + ' na semana' : 'Sem dados'}</span></article>
+    <article class="hub-card glass"><small>Menos ataca</small><strong>${esc(low?.member?.name || '—')}</strong><span>${low ? low.totalWeek + ' na semana' : 'Sem dados'}</span></article>
+  `;
+  ui.hubClanBoard.innerHTML = weeklySorted.map((item, idx) => `
+    <article class="hub-row glass">
+      <div class="hub-row-head">
+        <strong>#${idx+1} ${esc(item.member.name)}</strong>
+        <span class="chip ${idx<3 ? 'good' : 'blue'}">${item.totalWeek} atk semana</span>
+      </div>
+      <div class="chips">
+        <span class="chip">${item.summary.attacksMonth} atk mês</span>
+        <span class="chip">${item.summary.tournamentPoints} pts torneio</span>
+        <span class="chip blue">${item.summary.clinchitPoints} clinchit</span>
+      </div>
+    </article>
+  `).join('') || '<div class="empty">Nenhum dado para exibir.</div>';
+}
+
 function monthContext(month){
   month = canonicalMonthKey(month);
   const monthObj = ensureMonth(month);
@@ -1876,6 +2057,10 @@ function toggleWarAutoMember(key){
   renderWarRankingView();
   renderMembersSyncView();
   renderApiLogsView();
+  renderHubLeaderView();
+  renderHubRiskView();
+  renderHubDecisionView();
+  renderHubClanView();
   updateDrawerProfileSummary();
   renderDecksView();
 }
@@ -2248,6 +2433,10 @@ function render(){
   renderWarRankingView();
   renderMembersSyncView();
   renderApiLogsView();
+  renderHubLeaderView();
+  renderHubRiskView();
+  renderHubDecisionView();
+  renderHubClanView();
   updateDrawerProfileSummary();
   renderDecksView();
   renderTournamentEditor(ctx, week);
@@ -2274,8 +2463,10 @@ function render(){
   document.querySelectorAll('#membersSyncView').forEach(section => section.classList.toggle('hidden', !isAdminApp()));
   document.querySelectorAll('[data-view="apiLogsView"]').forEach(btn => btn.classList.toggle('hidden', !canEditApp()));
   document.querySelectorAll('#apiLogsView').forEach(section => section.classList.toggle('hidden', !canEditApp()));
+  document.querySelectorAll('[data-view="hubLeaderView"]').forEach(btn => btn.classList.toggle('hidden', !canEditApp()));
+  ['#hubLeaderView','#hubRiskView','#hubDecisionView','#hubClanView'].forEach(sel => document.querySelectorAll(sel).forEach(section => section.classList.toggle('hidden', !canEditApp())));
   if((!isAdminApp()) && ['membersSyncView'].includes(activeViewId)) setActiveView('arenaView');
-  if((!canEditApp()) && ['apiLogsView'].includes(activeViewId)) setActiveView('arenaView');
+  if((!canEditApp()) && ['apiLogsView','hubLeaderView','hubRiskView','hubDecisionView','hubClanView'].includes(activeViewId)) setActiveView('arenaView');
   if(ui.weekHeroPicker){ ui.weekHeroPicker.classList.toggle('hidden', ['arenaView','eliteView'].includes(activeViewId)); }
   updateSelectors();
   window.TOPBRS_REMOTE?.afterRender?.();
@@ -3492,11 +3683,15 @@ function setActiveView(viewId){
   if(viewId === 'warRankingView') renderWarRankingView(true);
   if(viewId === 'membersSyncView') renderMembersSyncView(true);
   if(viewId === 'apiLogsView') renderApiLogsView(true);
+  if(viewId === 'hubLeaderView') renderHubLeaderView();
+  if(viewId === 'hubRiskView') renderHubRiskView();
+  if(viewId === 'hubDecisionView') renderHubDecisionView();
+  if(viewId === 'hubClanView') renderHubClanView();
   if(viewId === 'decksView') renderDecksView(false);
   if(['arenaView','classificationView','eliteView'].includes(viewId)) bootstrapWarHistoryForArena(false);
   toggleViewMenu(false);
-  if(ui.heroSection){ ui.heroSection.classList.toggle('hidden', ['classificationView','vaultView','membersView','usersView','archivedView','warAutoView','warRankingView','membersSyncView','apiLogsView','decksView'].includes(viewId)); }
-  if(ui.weekHeroPicker){ ui.weekHeroPicker.classList.toggle('hidden', ['arenaView','eliteView','warAutoView','warRankingView','membersSyncView','apiLogsView','decksView'].includes(viewId)); }
+  if(ui.heroSection){ ui.heroSection.classList.toggle('hidden', ['classificationView','vaultView','membersView','usersView','archivedView','warAutoView','warRankingView','membersSyncView','apiLogsView','decksView','hubLeaderView','hubRiskView','hubDecisionView','hubClanView'].includes(viewId)); }
+  if(ui.weekHeroPicker){ ui.weekHeroPicker.classList.toggle('hidden', ['arenaView','eliteView','warAutoView','warRankingView','membersSyncView','apiLogsView','decksView','hubLeaderView','hubRiskView','hubDecisionView','hubClanView'].includes(viewId)); }
   if(viewId !== 'vaultView') lastNonVaultView = viewId;
   closeDrawer();
   requestAnimationFrame(applyDynamicTopSpacing);
@@ -3630,6 +3825,20 @@ function bind(){
     if(attackBtn) toggleAttack(attackBtn.dataset.toggleAttack);
     const partBtn = e.target.closest('[data-toggle-participation]');
     if(partBtn) toggleParticipation(partBtn.dataset.toggleParticipation);
+    const hubMonthBtn = e.target.closest('[data-hub-month]');
+    if(hubMonthBtn){
+      state.ui.hubMonth = canonicalMonthKey(hubMonthBtn.dataset.hubMonth);
+      saveState();
+      renderHubLeaderView(); renderHubRiskView(); renderHubDecisionView(); renderHubClanView();
+      return;
+    }
+    const hubWeekBtn = e.target.closest('[data-hub-week]');
+    if(hubWeekBtn){
+      state.ui.hubWeek = Number(hubWeekBtn.dataset.hubWeek || 1);
+      saveState();
+      renderHubLeaderView(); renderHubRiskView(); renderHubDecisionView(); renderHubClanView();
+      return;
+    }
     const quickPosBtn = e.target.closest('[data-quick-position]');
     if(quickPosBtn) setTournamentPosition(quickPosBtn.dataset.quickPosition, quickPosBtn.dataset.positionValue);
     const monthChip = e.target.closest('[data-classification-month]');
@@ -3738,6 +3947,10 @@ function bind(){
   renderWarRankingView();
   renderMembersSyncView();
   renderApiLogsView();
+  renderHubLeaderView();
+  renderHubRiskView();
+  renderHubDecisionView();
+  renderHubClanView();
   updateDrawerProfileSummary();
   renderDecksView();
   });
@@ -3753,6 +3966,10 @@ function bind(){
   renderWarRankingView();
   renderMembersSyncView();
   renderApiLogsView();
+  renderHubLeaderView();
+  renderHubRiskView();
+  renderHubDecisionView();
+  renderHubClanView();
   updateDrawerProfileSummary();
   renderDecksView();
   });
