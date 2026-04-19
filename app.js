@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.9.7 Oficial Auto';
+const appVersion = 'V2.0.9.9 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -1129,6 +1129,7 @@ function getHubSelectedWeek(){
   state.ui.hubWeek ||= Number(state.meta.currentWeek || 1);
   return Math.max(1, Math.min(4, Number(state.ui.hubWeek || 1)));
 }
+
 function buildHubContext(){
   const month = getHubSelectedMonth();
   const week = getHubSelectedWeek();
@@ -1136,10 +1137,14 @@ function buildHubContext(){
   const dayInfo = hubCurrentDayInfo();
   const weeklyRows = ctx.summaries.map(item => {
     const w = item.weekly[week-1];
+    const prevWeek = week > 1 ? item.weekly[week-2] : null;
+    const twoWeeksAvg = item.weekly.slice(Math.max(0, week-2), week).reduce((acc,row)=>acc + Number(row.attacksTotal || 0),0) / Math.max(1, item.weekly.slice(Math.max(0, week-2), week).length);
     const totalsByDay = [w.days.quinta.total, w.days.sexta.total, w.days.sabado.total, w.days.domingo.total];
     const todayTotal = dayInfo.index >= 0 ? totalsByDay[dayInfo.index] : 0;
     const expectedWeek = dayInfo.expected || 0;
     const totalWeek = Number(w.attacksTotal || 0);
+    const prevWeekTotal = Number(prevWeek?.attacksTotal || 0);
+    const trend = totalWeek - prevWeekTotal;
     let riskTone = 'safe';
     let riskLabel = 'Seguro';
     if(dayInfo.expected > 0){
@@ -1155,6 +1160,11 @@ function buildHubContext(){
         if(totalWeek <= 8) riskLabel = 'Perdeu clinchit';
       }
     }
+    let historyRisk = 'Estável';
+    if(week > 1 && trend < -4) historyRisk = 'Queda forte';
+    else if(week > 1 && trend < 0) historyRisk = 'Queda leve';
+    else if(week > 1 && trend > 0) historyRisk = 'Evoluindo';
+
     let decision = 'Observar';
     if(riskTone === 'high') decision = 'Cobrar';
     else if(riskTone === 'good' && item.scoreElite >= 10) decision = 'Bom desempenho';
@@ -1169,7 +1179,11 @@ function buildHubContext(){
       expectedWeek,
       riskTone,
       riskLabel,
-      decision
+      decision,
+      prevWeekTotal,
+      trend,
+      historyRisk,
+      twoWeeksAvg
     };
   });
   weeklyRows.sort((a,b) => {
@@ -1206,11 +1220,12 @@ function renderHubLeaderView(){
     <article class="hub-card glass"><small>4/4 hoje</small><strong>${fullToday}</strong><span>${zeroToday} zerados hoje</span></article>
   `;
 }
+
 function renderHubRiskView(){
   if(!ui.hubRiskBoard) return;
   const {dayInfo, weeklyRows, month, week} = buildHubContext();
   if(ui.hubRiskMeta){
-    ui.hubRiskMeta.textContent = `${monthLabel(month)} • S${week} • ${dayInfo.label} • análise combinada do dia e da semana.`;
+    ui.hubRiskMeta.textContent = `${monthLabel(month)} • S${week} • ${dayInfo.label} • análise combinada do dia, semana e histórico.`;
   }
   ui.hubRiskBoard.innerHTML = weeklyRows.map(item => `
     <article class="hub-row glass ${item.riskTone}">
@@ -1222,11 +1237,11 @@ function renderHubRiskView(){
         <span class="chip blue">${item.todayTotal}/4 hoje</span>
         <span class="chip">${item.totalWeek}/${item.expectedWeek || 16} esperado</span>
         <span class="chip">${item.summary.attacksMonth} ataques no mês</span>
+        <span class="chip ${/Queda/.test(item.historyRisk) ? 'bad' : /Evoluindo/.test(item.historyRisk) ? 'good' : 'blue'}">${esc(item.historyRisk)}</span>
       </div>
     </article>
   `).join('') || '<div class="empty">Nenhum dado para exibir.</div>';
 }
-
 
 const SMART_ALERT_TEMPLATES = {
   excellent:{ key:'excellent', label:'Desempenho Excelente 🔥', title:'Desempenho Excelente 🔥', tone:'good', message:'Parabéns por ótimos resultados na war, nós valorizamos quem contribui e ajuda o clã a crescer mais e mais! Parabéns 🎉' },
@@ -1298,16 +1313,35 @@ function updateNotificationBadge(){
   ui.drawerNotificationBadge.classList.toggle('hidden', unread === 0);
   ui.drawerNotificationBtn.classList.toggle('has-alert', unread > 0);
 }
+
 function openAlertComposer(member={}){
   if(!ui.alertComposerModal || !ui.alertComposerBody || !ui.alertComposerTitle) return;
   ui.alertComposerTitle.textContent = `Notificar ${member.name || 'membro'}`;
   ui.alertComposerModal.dataset.member = JSON.stringify({ name: member.name || '', playerTag: member.playerTag || member.tag || '' });
-  ui.alertComposerBody.innerHTML = Object.values(SMART_ALERT_TEMPLATES).map(item => `
-    <button type="button" class="alert-template-btn ${item.tone}" data-alert-template="${esc(item.key)}">
-      <strong>${esc(item.label)}</strong>
-      <span>${esc(item.message)}</span>
-    </button>
-  `).join('');
+  ui.alertComposerBody.innerHTML = `
+    <div class="alert-mode-row">
+      <button type="button" class="mini-chip-btn active" data-alert-scope="individual">Individual</button>
+      <button type="button" class="mini-chip-btn" data-alert-scope="global">Global</button>
+    </div>
+    <div class="alert-template-list">
+      ${Object.values(SMART_ALERT_TEMPLATES).map(item => `
+        <button type="button" class="alert-template-btn ${item.tone}" data-alert-template="${esc(item.key)}">
+          <strong>${esc(item.label)}</strong>
+          <span>${esc(item.message)}</span>
+        </button>
+      `).join('')}
+      <button type="button" class="alert-template-btn blue" data-alert-template="leadership_notice">
+        <strong>📢 Aviso da liderança</strong>
+        <span>Mensagem livre com envio individual ou global.</span>
+      </button>
+    </div>
+    <label class="field" id="leadershipNoticeField" style="display:none">
+      <span>Mensagem personalizada</span>
+      <textarea id="leadershipNoticeInput" rows="4" placeholder="Digite o aviso da liderança"></textarea>
+    </label>
+    <button type="button" class="primary" id="sendLeadershipNoticeBtn" style="display:none">Enviar aviso</button>
+  `;
+  ui.alertComposerModal.dataset.scope = 'individual';
   ui.alertComposerModal.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
 }
@@ -1315,6 +1349,78 @@ function closeAlertComposer(){
   if(!ui.alertComposerModal) return;
   ui.alertComposerModal.classList.add('hidden');
   document.body.style.overflow = '';
+}
+
+function getAlertScope(){
+  return String(ui.alertComposerModal?.dataset.scope || 'individual');
+}
+async function sendLeadershipNotice(member={}, customMessage='', scope='individual'){
+  const message = String(customMessage || '').trim();
+  if(!message) { showToast('Digite uma mensagem para o aviso.', 'error'); return false; }
+  try{
+    await ensureRealtimeMessaging();
+    const firebase = window.TOPBRS_FIREBASE;
+    const api = window.__topbrsNotifApi;
+    if(!firebase?.db || !api?.addDoc) throw new Error('Firestore indisponível');
+    let recipientKeys = [];
+    let memberName = member.name || 'Clã';
+    if(scope === 'global'){
+      const setKeys = new Set();
+      activeMembers().forEach(m => buildAlertRecipientKeys(m).forEach(k => setKeys.add(k)));
+      recipientKeys = Array.from(setKeys);
+      memberName = 'Clã TopBRS';
+    }else{
+      recipientKeys = buildAlertRecipientKeys(member);
+    }
+    if(!recipientKeys.length) throw new Error('Sem destinatário');
+    await api.addDoc(api.collection(firebase.db, 'topbrs_notifications'), {
+      recipientKeys,
+      memberName,
+      playerTag: normalizeAlertTag(member.playerTag || member.tag || ''),
+      title: '📢 Aviso da liderança',
+      message,
+      tone: 'blue',
+      createdAt: api.serverTimestamp(),
+      seenBy: [],
+      deletedBy: [],
+      sentBy: currentAccessRole()
+    });
+    showToast(scope === 'global' ? 'Aviso global enviado.' : 'Aviso enviado.');
+    return true;
+  }catch(err){
+    console.warn('sendLeadershipNotice', err);
+    showToast('Falha ao enviar aviso.', 'error');
+    return false;
+  }
+}
+function getAutoAlertRecommendation(item){
+  if(item.totalWeek === 16) return 'excellent';
+  if(item.totalWeek >= 12) return 'good';
+  if(item.totalWeek >= 8) return 'observation';
+  return 'charge';
+}
+function alreadySentAutoRecently(member={}, type='observation'){
+  const memberName = String(member.name || '').trim().toLowerCase();
+  return (__topbrsRemoteNotifications || []).some(n =>
+    String(n.memberName || '').trim().toLowerCase() === memberName &&
+    String(n.tone || '').toLowerCase() === String((SMART_ALERT_TEMPLATES[type]?.tone || '')).toLowerCase() &&
+    (Date.now() - new Date(n.createdAt || 0).getTime()) < 12*60*60*1000
+  );
+}
+async function runAutomaticAlerts(weeklyRows=[]){
+  if(!Array.isArray(weeklyRows) || !weeklyRows.length) return;
+  const autoKey = `${getHubSelectedMonth()}_${getHubSelectedWeek()}`;
+  state.ui ||= {};
+  if(state.ui.lastAutoAlertRunKey === autoKey) return;
+  for(const item of weeklyRows){
+    const type = getAutoAlertRecommendation(item);
+    if(type === 'good' && item.decision !== 'Bom desempenho' && item.totalWeek < 16) continue;
+    if(type === 'observation' && item.riskTone === 'safe') continue;
+    if(alreadySentAutoRecently(item.member, type)) continue;
+    await sendSmartAlert(item.member, type);
+  }
+  state.ui.lastAutoAlertRunKey = autoKey;
+  saveState();
 }
 async function ensureRealtimeMessaging(){
   try{
@@ -1548,30 +1654,39 @@ function getPresenceToneForMember(member={}){
   return 'offline';
 }
 
+
 function renderHubDecisionView(){
   if(!ui.hubDecisionBoard) return;
   const {weeklyRows, month, week} = buildHubContext();
   if(ui.hubDecisionMeta){
     ui.hubDecisionMeta.textContent = `${monthLabel(month)} • S${week} • recomendações para liderança.`;
   }
-  ui.hubDecisionBoard.innerHTML = weeklyRows.map(item => `
-    <article class="hub-row glass">
-      <div class="hub-row-head">
-        <strong>${esc(item.member.name)}</strong>
-        <div class="hub-row-actions">
-          <button type="button" class="hub-bell-btn" data-open-alert-composer='${esc(JSON.stringify({name:item.member.name || '', playerTag:item.member.playerTag || item.member.tag || ''}))}' title="Enviar alerta">🔔</button>
-          <span class="chip ${/promoção/i.test(item.decision) ? 'good' : /expulsão|cobrar/i.test(item.decision) ? 'bad' : 'warn'}">${esc(item.decision)}</span>
+  runAutomaticAlerts(weeklyRows).catch(err => console.warn('runAutomaticAlerts', err));
+  ui.hubDecisionBoard.innerHTML = `
+    <div class="hub-global-action">
+      <button type="button" class="primary small" data-open-global-notice="1">📢 Aviso da liderança</button>
+    </div>
+    ${weeklyRows.map(item => `
+      <article class="hub-row glass">
+        <div class="hub-row-head">
+          <strong>${esc(item.member.name)}</strong>
+          <div class="hub-row-actions">
+            <button type="button" class="hub-bell-btn" data-open-alert-composer='${esc(JSON.stringify({name:item.member.name || '', playerTag:item.member.playerTag || item.member.tag || ''}))}' title="Enviar alerta">🔔</button>
+            <span class="chip ${/promoção/i.test(item.decision) ? 'good' : /expulsão|cobrar/i.test(item.decision) ? 'bad' : 'warn'}">${esc(item.decision)}</span>
+          </div>
         </div>
-      </div>
-      <div class="chips">
-        <span class="chip">${item.totalWeek}/16 semana</span>
-        <span class="chip">${item.summary.scoreElite} elite</span>
-        <span class="chip blue">${esc(item.summary.suggestion)}</span>
-      </div>
-    </article>
-  `).join('') || '<div class="empty">Nenhum dado para exibir.</div>';
+        <div class="chips">
+          <span class="chip">${item.totalWeek}/16 semana</span>
+          <span class="chip">${item.summary.scoreElite} elite</span>
+          <span class="chip blue">${esc(item.summary.suggestion)}</span>
+          <span class="chip ${/Queda/.test(item.historyRisk) ? 'bad' : /Evoluindo/.test(item.historyRisk) ? 'good' : 'blue'}">${esc(item.historyRisk)}</span>
+        </div>
+      </article>
+    `).join('') || '<div class="empty">Nenhum dado para exibir.</div>'}
+  `;
 }
 function renderHubClanView(){
+
   if(!ui.hubClanSummary || !ui.hubClanBoard) return;
   renderHubMonthWeekControls();
   const {ctx, month, week, weeklyRows} = buildHubContext();
@@ -4180,14 +4295,47 @@ function bind(){
       try{ openAlertComposer(JSON.parse(openComposerBtn.dataset.openAlertComposer || '{}')); }catch(err){}
       return;
     }
+    const openGlobalNoticeBtn = e.target.closest('[data-open-global-notice]');
+    if(openGlobalNoticeBtn){
+      openAlertComposer({ name:'Clã TopBRS', playerTag:'' });
+      ui.alertComposerModal.dataset.scope = 'global';
+      ui.alertComposerBody.querySelectorAll('[data-alert-scope]').forEach(btn => btn.classList.toggle('active', btn.dataset.alertScope === 'global'));
+      return;
+    }
+    const scopeBtn = e.target.closest('[data-alert-scope]');
+    if(scopeBtn && ui.alertComposerModal){
+      ui.alertComposerModal.dataset.scope = scopeBtn.dataset.alertScope || 'individual';
+      ui.alertComposerBody.querySelectorAll('[data-alert-scope]').forEach(btn => btn.classList.toggle('active', btn === scopeBtn));
+      return;
+    }
     const templateBtn = e.target.closest('[data-alert-template]');
     if(templateBtn){
-      try{
-        const member = JSON.parse(ui.alertComposerModal?.dataset.member || '{}');
-        if(sendSmartAlert(member, templateBtn.dataset.alertTemplate || 'observation')){
-          closeAlertComposer();
-        }
-      }catch(err){}
+      (async() => {
+        try{
+          const member = JSON.parse(ui.alertComposerModal?.dataset.member || '{}');
+          if(templateBtn.dataset.alertTemplate === 'leadership_notice'){
+            const field = document.getElementById('leadershipNoticeField');
+            const sendBtn = document.getElementById('sendLeadershipNoticeBtn');
+            if(field) field.style.display = 'block';
+            if(sendBtn) sendBtn.style.display = 'inline-flex';
+            return;
+          }
+          const ok = await sendSmartAlert(member, templateBtn.dataset.alertTemplate || 'observation');
+          if(ok) closeAlertComposer();
+        }catch(err){ console.warn('template alert', err); }
+      })();
+      return;
+    }
+    const sendLeadershipNoticeBtn = e.target.closest('#sendLeadershipNoticeBtn');
+    if(sendLeadershipNoticeBtn){
+      (async() => {
+        try{
+          const member = JSON.parse(ui.alertComposerModal?.dataset.member || '{}');
+          const message = document.getElementById('leadershipNoticeInput')?.value || '';
+          const ok = await sendLeadershipNotice(member, message, getAlertScope());
+          if(ok) closeAlertComposer();
+        }catch(err){ console.warn('leadership notice send', err); }
+      })();
       return;
     }
     const notifOpenBtn = e.target.closest('[data-open-alert-id]');
