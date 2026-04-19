@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.1.0 Oficial Auto';
+const appVersion = 'V2.1.1 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -1206,6 +1206,46 @@ function renderHubMonthWeekControls(){
     `).join('');
   }
 }
+
+function getHubUiFilter(key, fallback='all'){
+  state.ui ||= {};
+  return String(state.ui[key] || fallback);
+}
+function setHubUiFilter(key, value='all'){
+  state.ui ||= {};
+  state.ui[key] = String(value || 'all');
+  saveState();
+}
+function getHubRowExpansion(section, memberName=''){
+  state.ui ||= {};
+  state.ui.hubExpanded ||= {};
+  const sectionMap = state.ui.hubExpanded[section] || {};
+  return Boolean(sectionMap[String(memberName || '')]);
+}
+function toggleHubRowExpansion(section, memberName=''){
+  state.ui ||= {};
+  state.ui.hubExpanded ||= {};
+  state.ui.hubExpanded[section] ||= {};
+  const key = String(memberName || '');
+  state.ui.hubExpanded[section][key] = !state.ui.hubExpanded[section][key];
+  saveState();
+}
+function renderHubFilterBar(type, filters=[], active='all'){
+  return `<div class="hub-filterbar">${filters.map(item => `
+    <button type="button" class="hub-filter-chip ${active === item.value ? 'active' : ''}" data-hub-filter-type="${esc(type)}" data-hub-filter-value="${esc(item.value)}">${esc(item.label)}</button>
+  `).join('')}</div>`;
+}
+function renderHubMiniStats(stats=[]){
+  return `<div class="hub-mini-stats">${stats.map(item => `
+    <article class="hub-mini-card ${esc(item.tone || 'blue')}">
+      <small>${esc(item.label)}</small>
+      <strong>${Number(item.value || 0)}</strong>
+    </article>
+  `).join('')}</div>`;
+}
+function renderHubMetaBlock(text=''){
+  return `<div class="hub-meta-block glass">${esc(text)}</div>`;
+}
 function renderHubLeaderView(){
   if(!ui.hubLeaderSummary) return;
   renderHubMonthWeekControls();
@@ -1225,23 +1265,48 @@ function renderHubLeaderView(){
 function renderHubRiskView(){
   if(!ui.hubRiskBoard) return;
   const {dayInfo, weeklyRows, month, week} = buildHubContext();
+  const activeFilter = getHubUiFilter('hubRiskFilter', 'all');
+  const emDia = weeklyRows.filter(item => item.riskTone === 'good').length;
+  const riscoMedio = weeklyRows.filter(item => item.riskTone === 'medium').length;
+  const riscoAlto = weeklyRows.filter(item => item.riskTone === 'high').length;
   if(ui.hubRiskMeta){
-    ui.hubRiskMeta.textContent = `${monthLabel(month)} • S${week} • ${dayInfo.label} • análise combinada do dia, semana e histórico.`;
+    ui.hubRiskMeta.innerHTML = [
+      renderHubMiniStats([
+        { label:'Em dia', value:emDia, tone:'good' },
+        { label:'Risco médio', value:riscoMedio, tone:'warn' },
+        { label:'Risco alto / Clinchit', value:riscoAlto, tone:'bad' }
+      ]),
+      renderHubMetaBlock(`${monthLabel(month)} • S${week} • ${dayInfo.label} • análise combinada do dia, semana e histórico.`),
+      renderHubFilterBar('risk', [
+        { value:'all', label:'Todos' },
+        { value:'good', label:'Em dia' },
+        { value:'medium', label:'Risco médio' },
+        { value:'high', label:'Risco alto' }
+      ], activeFilter)
+    ].join('');
   }
-  ui.hubRiskBoard.innerHTML = weeklyRows.map(item => `
-    <article class="hub-row glass ${item.riskTone}">
-      <div class="hub-row-head">
-        <strong>${esc(item.member.name)}</strong>
-        <span class="chip ${item.riskTone === 'high' ? 'bad' : item.riskTone === 'medium' ? 'warn' : 'good'}">${esc(item.riskLabel)}</span>
-      </div>
-      <div class="chips">
-        <span class="chip blue">${item.todayTotal}/4 hoje</span>
-        <span class="chip">${item.totalWeek}/${item.expectedWeek || 16} esperado</span>
-        <span class="chip">${item.summary.attacksMonth} ataques no mês</span>
-        <span class="chip ${/Queda/.test(item.historyRisk) ? 'bad' : /Evoluindo/.test(item.historyRisk) ? 'good' : 'blue'}">${esc(item.historyRisk)}</span>
-      </div>
-    </article>
-  `).join('') || '<div class="empty">Nenhum dado para exibir.</div>';
+  const filteredRows = weeklyRows.filter(item => activeFilter === 'all' ? true : item.riskTone === activeFilter);
+  ui.hubRiskBoard.innerHTML = filteredRows.map(item => {
+    const expanded = getHubRowExpansion('risk', item.member.name);
+    return `
+      <article class="hub-compact-row glass ${item.riskTone}">
+        <div class="hub-compact-head">
+          <strong>${esc(item.member.name)}</strong>
+          <button type="button" class="hub-toggle-btn" data-hub-toggle-row="risk|${encodeURIComponent(item.member.name)}" aria-label="${expanded ? 'Recolher' : 'Expandir'}">${expanded ? '▴' : '▾'}</button>
+        </div>
+        ${expanded ? `
+          <div class="hub-compact-body">
+            <div class="hub-compact-banner ${item.riskTone === 'high' ? 'bad' : item.riskTone === 'medium' ? 'warn' : 'good'}">${esc(item.riskLabel)}</div>
+            <div class="hub-compact-chips">
+              <span class="chip blue">${item.todayTotal}/4 hoje</span>
+              <span class="chip">${item.totalWeek}/${item.expectedWeek || 16} esperado</span>
+              <span class="chip">${item.summary.attacksMonth} ataques no mês</span>
+              <span class="chip ${/Queda/.test(item.historyRisk) ? 'bad' : /Evoluindo/.test(item.historyRisk) ? 'good' : 'blue'}">${esc(item.historyRisk)}</span>
+            </div>
+          </div>` : ''}
+      </article>
+    `;
+  }).join('') || '<div class="empty">Nenhum membro nesse filtro.</div>';
 }
 
 const SMART_ALERT_TEMPLATES = {
@@ -1693,35 +1758,69 @@ function getPresenceToneForMember(member={}){
 function renderHubDecisionView(){
   if(!ui.hubDecisionBoard) return;
   const {weeklyRows, month, week} = buildHubContext();
+  const activeFilter = getHubUiFilter('hubDecisionFilter', 'all');
   if(ui.hubDecisionMeta){
-    ui.hubDecisionMeta.textContent = `${monthLabel(month)} • S${week} • recomendações para liderança.`;
+    const promote = weeklyRows.filter(item => /promoção/i.test(item.decision)).length;
+    const cobrar = weeklyRows.filter(item => /cobrar/i.test(item.decision)).length;
+    const observar = weeklyRows.filter(item => /observar/i.test(item.decision)).length;
+    const manter = weeklyRows.filter(item => /bom desempenho|manter/i.test(item.decision) || item.decision === 'Bom desempenho').length;
+    ui.hubDecisionMeta.innerHTML = [
+      renderHubMiniStats([
+        { label:'Promoção', value:promote, tone:'good' },
+        { label:'Cobrar', value:cobrar, tone:'bad' },
+        { label:'Observar', value:observar, tone:'warn' },
+        { label:'Manter', value:manter, tone:'blue' }
+      ]),
+      renderHubMetaBlock(`${monthLabel(month)} • S${week} • recomendações para liderança.`),
+      renderHubFilterBar('decision', [
+        { value:'all', label:'Todos' },
+        { value:'promotion', label:'Promoção' },
+        { value:'charge', label:'Cobrar' },
+        { value:'observe', label:'Observar' },
+        { value:'maintain', label:'Manter' }
+      ], activeFilter)
+    ].join('');
   }
   runAutomaticAlerts(weeklyRows).catch(err => console.warn('runAutomaticAlerts', err));
-  ui.hubDecisionBoard.innerHTML = `
-    ${weeklyRows.map(item => `
-      <article class="hub-row glass">
-        <div class="hub-row-head">
+  const filteredRows = weeklyRows.filter(item => {
+    if(activeFilter === 'all') return true;
+    if(activeFilter === 'promotion') return /promoção/i.test(item.decision);
+    if(activeFilter === 'charge') return /cobrar/i.test(item.decision);
+    if(activeFilter === 'observe') return /observar/i.test(item.decision);
+    if(activeFilter === 'maintain') return /bom desempenho|manter/i.test(item.decision) || item.decision === 'Bom desempenho';
+    return true;
+  });
+  ui.hubDecisionBoard.innerHTML = filteredRows.map(item => {
+    const expanded = getHubRowExpansion('decision', item.member.name);
+    return `
+      <article class="hub-compact-row glass">
+        <div class="hub-compact-head">
           <strong>${esc(item.member.name)}</strong>
           <div class="hub-row-actions">
             <button type="button" class="hub-bell-btn" data-open-alert-composer='${esc(JSON.stringify({name:item.member.name || '', playerTag:item.member.playerTag || item.member.tag || ''}))}' title="Enviar alerta">🔔</button>
-            <span class="chip ${/promoção/i.test(item.decision) ? 'good' : /expulsão|cobrar/i.test(item.decision) ? 'bad' : 'warn'}">${esc(item.decision)}</span>
+            <button type="button" class="hub-toggle-btn" data-hub-toggle-row="decision|${encodeURIComponent(item.member.name)}" aria-label="${expanded ? 'Recolher' : 'Expandir'}">${expanded ? '▴' : '▾'}</button>
           </div>
         </div>
-        <div class="chips">
-          <span class="chip">${item.totalWeek}/16 semana</span>
-          <span class="chip">${item.summary.scoreElite} elite</span>
-          <span class="chip blue">${esc(item.summary.suggestion)}</span>
-          <span class="chip ${/Queda/.test(item.historyRisk) ? 'bad' : /Evoluindo/.test(item.historyRisk) ? 'good' : 'blue'}">${esc(item.historyRisk)}</span>
-        </div>
+        ${expanded ? `
+          <div class="hub-compact-body">
+            <div class="hub-compact-banner ${/promoção/i.test(item.decision) ? 'good' : /expulsão|cobrar/i.test(item.decision) ? 'bad' : 'blue'}">${esc(item.decision)}</div>
+            <div class="hub-compact-chips">
+              <span class="chip">${item.totalWeek}/16 semana</span>
+              <span class="chip">${item.summary.scoreElite} elite</span>
+              <span class="chip blue">${esc(item.summary.suggestion)}</span>
+              <span class="chip ${/Queda/.test(item.historyRisk) ? 'bad' : /Evoluindo/.test(item.historyRisk) ? 'good' : 'blue'}">${esc(item.historyRisk)}</span>
+            </div>
+          </div>` : ''}
       </article>
-    `).join('') || '<div class="empty">Nenhum dado para exibir.</div>'}
-  `;
+    `;
+  }).join('') || '<div class="empty">Nenhum membro nesse filtro.</div>';
 }
 function renderHubClanView(){
 
   if(!ui.hubClanSummary || !ui.hubClanBoard) return;
   renderHubMonthWeekControls();
   const {ctx, month, week, weeklyRows} = buildHubContext();
+  const activeFilter = getHubUiFilter('hubClanFilter', 'all');
   const weeklySorted = [...weeklyRows].sort((a,b) => b.totalWeek - a.totalWeek || a.member.name.localeCompare(b.member.name,'pt-BR'));
   const top = weeklySorted[0];
   const low = [...weeklySorted].filter(r => r.totalWeek >= 0).sort((a,b) => a.totalWeek - b.totalWeek || a.member.name.localeCompare(b.member.name,'pt-BR'))[0];
@@ -1729,24 +1828,43 @@ function renderHubClanView(){
   const weekTotal = weeklyRows.reduce((acc, item) => acc + item.totalWeek, 0);
   const weekGoal = activeMembers().length * 16;
   ui.hubClanSummary.innerHTML = `
-    <article class="hub-card glass"><small>Ataques do mês</small><strong>${ctx.attackTotalClan}</strong><span>Meta ${monthGoal}</span></article>
-    <article class="hub-card glass"><small>Ataques da semana</small><strong>${weekTotal}</strong><span>Meta ${weekGoal}</span></article>
-    <article class="hub-card glass"><small>Mais ataca</small><strong>${esc(top?.member?.name || '—')}</strong><span>${top ? top.totalWeek + ' na semana' : 'Sem dados'}</span></article>
-    <article class="hub-card glass"><small>Menos ataca</small><strong>${esc(low?.member?.name || '—')}</strong><span>${low ? low.totalWeek + ' na semana' : 'Sem dados'}</span></article>
+    ${renderHubMetaBlock(`${monthLabel(month)} • S${week} • visão do mês + acompanhamento semanal.`)}
+    <div class="hub-grid">
+      <article class="hub-card glass"><small>Ataques do mês</small><strong>${ctx.attackTotalClan}</strong><span>Meta ${monthGoal}</span></article>
+      <article class="hub-card glass"><small>Ataques da semana</small><strong>${weekTotal}</strong><span>Meta ${weekGoal}</span></article>
+      <article class="hub-card glass"><small>Mais ataca</small><strong>${esc(top?.member?.name || '—')}</strong><span>${top ? top.totalWeek + ' na semana' : 'Sem dados'}</span></article>
+      <article class="hub-card glass"><small>Menos ataca</small><strong>${esc(low?.member?.name || '—')}</strong><span>${low ? low.totalWeek + ' na semana' : 'Sem dados'}</span></article>
+    </div>
+    ${renderHubFilterBar('clan', [
+      { value:'all', label:'Todos' },
+      { value:'top', label:'Mais ativos' },
+      { value:'low', label:'Menos ativos' }
+    ], activeFilter)}
   `;
-  ui.hubClanBoard.innerHTML = weeklySorted.map((item, idx) => `
-    <article class="hub-row glass">
-      <div class="hub-row-head">
-        <strong>#${idx+1} ${esc(item.member.name)}</strong>
-        <span class="chip ${idx<3 ? 'good' : 'blue'}">${item.totalWeek} atk semana</span>
-      </div>
-      <div class="chips">
-        <span class="chip">${item.summary.attacksMonth} atk mês</span>
-        <span class="chip">${item.summary.tournamentPoints} pts torneio</span>
-        <span class="chip blue">${item.summary.clinchitPoints} clinchit</span>
-      </div>
-    </article>
-  `).join('') || '<div class="empty">Nenhum dado para exibir.</div>';
+  let filtered = weeklySorted;
+  if(activeFilter === 'top') filtered = weeklySorted.slice(0, 10);
+  if(activeFilter === 'low') filtered = [...weeklySorted].reverse().slice(0, 10);
+  ui.hubClanBoard.innerHTML = filtered.map((item, idx) => {
+    const expanded = getHubRowExpansion('clan', item.member.name);
+    return `
+      <article class="hub-compact-row glass">
+        <div class="hub-compact-head">
+          <strong>#${idx+1} ${esc(item.member.name)}</strong>
+          <button type="button" class="hub-toggle-btn" data-hub-toggle-row="clan|${encodeURIComponent(item.member.name)}" aria-label="${expanded ? 'Recolher' : 'Expandir'}">${expanded ? '▴' : '▾'}</button>
+        </div>
+        ${expanded ? `
+          <div class="hub-compact-body">
+            <div class="hub-compact-banner blue">${item.totalWeek} ataques na semana</div>
+            <div class="hub-compact-chips">
+              <span class="chip">${item.summary.attacksMonth} atk mês</span>
+              <span class="chip">${item.summary.tournamentPoints} pts torneio</span>
+              <span class="chip blue">${item.summary.clinchitPoints} clinchit</span>
+              <span class="chip ${/Queda/.test(item.historyRisk) ? 'bad' : /Evoluindo/.test(item.historyRisk) ? 'good' : 'blue'}">${esc(item.historyRisk)}</span>
+            </div>
+          </div>` : ''}
+      </article>
+    `;
+  }).join('') || '<div class="empty">Nenhum dado para exibir.</div>';
 }
 
 function monthContext(month){
@@ -4402,6 +4520,23 @@ function bind(){
       state.ui.hubWeek = Number(hubWeekBtn.dataset.hubWeek || 1);
       saveState();
       renderHubLeaderView(); renderHubRiskView(); renderHubDecisionView(); renderHubClanView();
+      return;
+    }
+    const hubFilterBtn = e.target.closest('[data-hub-filter-type]');
+    if(hubFilterBtn){
+      const type = String(hubFilterBtn.dataset.hubFilterType || '');
+      const value = String(hubFilterBtn.dataset.hubFilterValue || 'all');
+      if(type === 'risk') setHubUiFilter('hubRiskFilter', value);
+      if(type === 'decision') setHubUiFilter('hubDecisionFilter', value);
+      if(type === 'clan') setHubUiFilter('hubClanFilter', value);
+      renderHubRiskView(); renderHubDecisionView(); renderHubClanView();
+      return;
+    }
+    const hubToggleBtn = e.target.closest('[data-hub-toggle-row]');
+    if(hubToggleBtn){
+      const [section, encodedName] = String(hubToggleBtn.dataset.hubToggleRow || '').split('|');
+      toggleHubRowExpansion(section, decodeURIComponent(encodedName || ''));
+      renderHubRiskView(); renderHubDecisionView(); renderHubClanView();
       return;
     }
     const quickPosBtn = e.target.closest('[data-quick-position]');
