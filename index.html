@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TOP BRS">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <title>TOP BRS — PWA</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+  <div id="authGate" class="auth-gate">
+    <div class="auth-backdrop"></div>
+    <div class="auth-card glass">
+      <div class="auth-brand"><img src="top_brs_logo.png" class="logo-login" alt="TOP BRS"></div>
+      <h1 class="auth-title">Acesso ao Sistema</h1>
+      <p class="auth-subtitle">Entre para acompanhar o clã em tempo real ou crie sua conta.</p>
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-auth-tab="login">Login</button>
+        <button type="button" class="auth-tab" data-auth-tab="register">Cadastre-se</button>
+      </div>
+      <form id="loginForm" class="auth-form">
+        <label class="field"><span>Email</span><input type="email" id="loginEmail" autocomplete="email" required></label>
+        <label class="field"><span>Senha</span><div class="password-field"><input type="password" id="loginPassword" autocomplete="current-password" required><button type="button" class="password-toggle" data-target="loginPassword" aria-label="Mostrar senha" aria-pressed="false"><span class="icon-eye"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.25" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="icon-eye-off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.58 5.51A9.77 9.77 0 0 1 12 5.25c6 0 9.75 6.75 9.75 6.75a18.61 18.61 0 0 1-3.2 4.08M6.1 6.11C3.8 7.72 2.25 12 2.25 12s3.75 6.75 9.75 6.75a9.9 9.9 0 0 0 4.01-.84M9.88 9.88A3 3 0 0 0 9 12a3 3 0 0 0 3 3c.8 0 1.52-.31 2.05-.83" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button></div></label>
+        <div class="auth-actions">
+          <button type="submit" class="primary">Login</button>
+          <button type="button" class="ghost" id="forgotPasswordBtn">Esqueci senha</button>
+        </div>
+      </form>
+      <form id="registerForm" class="auth-form hidden">
+        <label class="field"><span>Nome</span><input type="text" id="registerName" autocomplete="name" required></label>
+        <label class="field"><span>Nick do jogo</span><input type="text" id="registerNick" readonly aria-readonly="true" required></label>
+        <label class="field"><span>Tag do jogador</span><div class="tag-validate-row"><input type="text" id="registerPlayerTag" placeholder="#Q2ABC123" autocapitalize="characters" autocomplete="off" required><button type="button" class="ghost small validate-tag-btn" id="validatePlayerTagBtn">Validar</button></div></label>
+        <p id="tagValidationStatus" class="auth-message hidden"></p>
+        <label class="field"><span>Email</span><input type="email" id="registerEmail" autocomplete="email" required></label>
+        <label class="field"><span>Senha</span><div class="password-field"><input type="password" id="registerPassword" autocomplete="new-password" required><button type="button" class="password-toggle" data-target="registerPassword" aria-label="Mostrar senha" aria-pressed="false"><span class="icon-eye"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.25" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="icon-eye-off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.58 5.51A9.77 9.77 0 0 1 12 5.25c6 0 9.75 6.75 9.75 6.75a18.61 18.61 0 0 1-3.2 4.08M6.1 6.11C3.8 7.72 2.25 12 2.25 12s3.75 6.75 9.75 6.75a9.9 9.9 0 0 0 4.01-.84M9.88 9.88A3 3 0 0 0 9 12a3 3 0 0 0 3 3c.8 0 1.52-.31 2.05-.83" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button></div></label>
+        <div class="auth-actions">
+          <button type="submit" class="primary">Criar conta</button>
+          <button type="button" class="ghost" data-auth-tab="login">Voltar ao login</button>
+        </div>
+      </form>
+      <p id="authMessage" class="auth-message hidden"></p>
+    </div>
+  </div>
+  <div id="authLoader" class="auth-loader hidden" aria-hidden="true">
+    <div class="auth-loader-card glass">
+      <div class="loader-ring"></div>
+      <strong>Entrando no sistema...</strong>
+      <small>Sincronizando sua experiência</small>
+    </div>
+  </div>
+  <div class="app-shell">
+    <div class="ambient ambient-1"></div>
+    <div class="ambient ambient-2"></div>
+
+    <header class="topbar glass">
+      <div class="topbar-brand center-brand">
+        <div class="view-menu-wrap">
+          <button id="currentViewBadge" class="current-view-badge" type="button" aria-label="Abrir menus">Arena 🏟️</button>
+        </div>
+        
+      </div>
+      <div class="topbar-actions">
+        <button id="installBtn" class="ghost small hidden">Instalar</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="hero glass">
+        <div class="hero-copy">
+          <p class="eyebrow">Clã</p>
+          <div id="heroClanName" class="hero-clan-logo-wrap"><img src="top_brs_wordmark.png" class="hero-clan-logo" alt="TOP BR\'S"></div>
+          <div class="hero-tags hero-tags-minimal"></div>
+        </div>
+        <div class="hero-controls">
+          <div class="hero-picker">
+            <span class="picker-label">MÊS ATIVO</span>
+            <div id="monthChipBar" class="hero-chipbar month-chipbar"></div>
+            <select id="monthSelect" class="sr-only" aria-label="Mês ativo"></select>
+          </div>
+          <div class="hero-picker" id="weekHeroPicker">
+            <span class="picker-label">SEMANA FOCO</span>
+            <div id="weekChipBar" class="hero-chipbar week-chipbar"></div>
+            <select id="weekSelect" class="sr-only" aria-label="Semana foco">
+              <option value="1">Semana 1</option>
+              <option value="2">Semana 2</option>
+              <option value="3">Semana 3</option>
+              <option value="4">Semana 4</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section id="arenaView" class="view active">
+        <div class="kpi-grid" id="kpiGrid"></div>
+
+        <div class="split two">
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Pódio elite</p>
+                <h3>Domínio da arena</h3>
+              </div>
+              <button class="ghost small" id="shareRankingBtn">Gerar card</button>
+            </div>
+            <div id="podium"></div>
+          </section>
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Meta do clã</p>
+                <h3>Progresso do mês</h3>
+              </div>
+              <button class="ghost small" data-open-goals>Editar metas</button>
+            </div>
+            <div id="goalPanel"></div>
+          </section>
+        </div>
+
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Top 8</p>
+              <h3>Ranking lendário</h3>
+            </div>
+            <div class="segmented">
+              <button class="seg active" data-rank-mode="elite">Score ELITE</button>
+              <button class="seg" data-rank-mode="integrated">Score Integrado</button>
+            </div>
+          </div>
+          <div id="rankingList" class="ranking-list"></div>
+        </section>
+
+        <div class="split two">
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Modo líder</p>
+                <h3>Ações imediatas</h3>
+              </div>
+            </div>
+            <div id="leaderActions"></div>
+          </section>
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Pulso da temporada</p>
+                <h3>Resumo anual</h3>
+              </div>
+            </div>
+            <div id="annualPulse"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="warView" class="view">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Controle total</p>
+              <h3>Guerra — semana selecionada</h3>
+            </div>
+            <div class="segmented">
+              <button class="seg active" data-war-filter="all">Todos</button>
+              <button class="seg" data-war-filter="risk">Risco</button>
+              <button class="seg" data-war-filter="perfect">16/16</button>
+            </div>
+          </div>
+          <div id="warBoard"></div>
+        </section>
+      </section>
+
+      <section id="warAutoView" class="view">
+        <section class="panel glass war-auto-period-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Período da automação</p>
+            </div>
+          </div>
+          <div class="war-auto-period-grid">
+            <div class="hero-picker">
+              <span class="picker-label">Mês</span>
+              <div id="warAutoMonthChipBar" class="hero-chipbar month-chipbar"></div>
+            </div>
+            <div class="hero-picker">
+              <span class="picker-label">Semana</span>
+              <div id="warAutoWeekChipBar" class="hero-chipbar week-chipbar"></div>
+            </div>
+          </div>
+        </section>
+        
+        <div class="split two war-auto-layout">
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Automação da guerra</p>
+                <h3>Painel da Guerra ⚔️</h3>
+              </div>
+              <div class="inline-actions"><button id="warAutoRefreshBtn" class="ghost small icon-only" type="button" aria-label="Atualizar painel da guerra" title="Atualizar painel da guerra"><span class="refresh-icon">↻</span></button></div>
+            </div>
+            <div id="warAutoStats" class="war-auto-stats"></div>
+            <div id="warAutoMeta" class="war-auto-meta">Preparando painel automático...</div>
+          </section>
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Leitura Automática</p>
+              </div>
+            </div>
+            <div id="warAutoBoard" class="war-auto-board"></div>
+          </section>
+        </div>
+
+      </section>
+
+      <section id="warRankingView" class="view">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Ranking Guerra</p>
+              <h3>Classificação da guerra ⚔️</h3>
+            </div>
+            <div class="inline-actions"><button id="warRankingRefreshBtn" class="ghost small" type="button">Atualizar</button></div>
+          </div>
+          <div class="war-auto-period-grid war-ranking-period-grid">
+            <div class="hero-picker">
+              <span class="picker-label">Mês</span>
+              <div id="warRankingMonthChipBar" class="hero-chipbar month-chipbar"></div>
+            </div>
+            <div class="hero-picker">
+              <span class="picker-label">Semana</span>
+              <div id="warRankingWeekChipBar" class="hero-chipbar week-chipbar"></div>
+            </div>
+          </div>
+          <div id="warRankingMeta" class="war-ranking-meta">Preparando ranking de guerra...</div>
+          <div id="warRankingBoard" class="war-ranking-board"></div>
+        </section>
+      </section>
+
+      <section id="membersSyncView" class="view hidden">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Admin</p>
+              <h3>Membros Sync 🔄</h3>
+            </div>
+            <div class="inline-actions"><button id="membersSyncRefreshBtn" class="primary small" type="button">Sincronizar clã</button></div>
+          </div>
+          <div id="membersSyncMeta" class="war-ranking-meta">Use este painel para puxar membros atuais do clã e integrar ao sistema.</div>
+          <div id="membersSyncBoard" class="members-sync-board"></div>
+        </section>
+      </section>
+
+      <section id="apiLogsView" class="view hidden">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Admin</p>
+              <h3>Logs API 🛰️</h3>
+            </div>
+            <div class="inline-actions"><button id="apiLogsRefreshBtn" class="ghost small" type="button">Atualizar</button></div>
+          </div>
+          <div id="apiLogsMeta" class="war-ranking-meta">Diagnóstico da API da guerra e do túnel.</div>
+          <div id="apiLogsBoard" class="api-logs-board"></div>
+        </section>
+      </section>
+
+      
+      <section id="hubLeaderView" class="view hidden">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Liderança</p>
+              <h3>Hub dos Líderes 🧑🏼‍💻</h3>
+            </div>
+          </div>
+          <div id="hubLeaderSummary" class="hub-grid"></div>
+          <div class="hub-actions-grid">
+            <button class="hub-nav-btn glass" data-view="hubRiskView" type="button">
+              <small>Prioridade</small>
+              <strong>Risco automático</strong>
+              <span>Análise combinada do dia + semana</span>
+            </button>
+            <button class="hub-nav-btn glass" data-view="hubDecisionView" type="button">
+              <small>Sugestões</small>
+              <strong>Decisões automáticas</strong>
+              <span>Quem observar, cobrar e reconhecer</span>
+            </button>
+            <button class="hub-nav-btn glass" data-view="hubClanView" type="button">
+              <small>Gestão</small>
+              <strong>Acompanhamento do clã</strong>
+              <span>Resumo do mês e da semana</span>
+            </button>
+          </div>
+        </section>
+      </section>
+
+      <section id="hubRiskView" class="view hidden">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Hub dos Líderes</p>
+              <h3>Risco automático</h3>
+            </div>
+            <div class="inline-actions"><button class="ghost small" data-view="hubLeaderView" type="button">Voltar</button></div>
+          </div>
+          <div id="hubRiskMeta" class="war-ranking-meta">Preparando análise de risco...</div>
+          <div id="hubRiskBoard" class="hub-list"></div>
+        </section>
+      </section>
+
+      <section id="hubDecisionView" class="view hidden">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Hub dos Líderes</p>
+              <h3>Decisões automáticas</h3>
+            </div>
+            <div class="inline-actions"><button class="ghost small" data-view="hubLeaderView" type="button">Voltar</button></div>
+          </div>
+          <div id="hubDecisionMeta" class="war-ranking-meta">Sugestões automáticas para liderança.</div>
+          <div id="hubDecisionBoard" class="hub-list"></div>
+        </section>
+      </section>
+
+      <section id="hubClanView" class="view hidden">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Hub dos Líderes</p>
+              <h3>Acompanhamento do clã</h3>
+            </div>
+            <div class="inline-actions"><button class="ghost small" data-view="hubLeaderView" type="button">Voltar</button></div>
+          </div>
+          <div class="hero-controls hub-controls">
+            <div class="hero-picker">
+              <span class="picker-label">Mês</span>
+              <div id="hubMonthChipBar" class="hero-chipbar month-chipbar"></div>
+            </div>
+            <div class="hero-picker">
+              <span class="picker-label">Semana</span>
+              <div id="hubWeekChipBar" class="hero-chipbar week-chipbar"></div>
+            </div>
+          </div>
+          <div id="hubClanMeta" class="war-ranking-meta">Resumo do mês e da semana selecionada.</div>
+          <div id="hubClanSummary" class="hub-grid"></div>
+          <div id="hubClanBoard" class="hub-list"></div>
+        </section>
+      </section>
+
+
+<section id="tournamentView" class="view">
+        <div class="split two">
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Torneio semanal</p>
+                <h3>Marcação rápida</h3>
+              </div>
+            </div>
+            <div id="tournamentEditor"></div>
+          </section>
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Classificação</p>
+                <h3>Placar mensal</h3>
+              </div>
+            </div>
+            <div id="tournamentBoard"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="classificationView" class="view">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Classificação mensal</p>
+              <h3>Tabela de pontuação do clã</h3>
+            </div>
+          </div>
+          <div id="classificationBoard"></div>
+        </section>
+      </section>
+
+      <section id="eliteView" class="view">
+        <div class="split two">
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Seleção elite</p>
+                <h3>Candidatos automáticos</h3>
+              </div>
+            </div>
+            <div id="eliteBoard"></div>
+          </section>
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Histórico</p>
+                <h3>Decisões do sistema</h3>
+              </div>
+            </div>
+            <div id="historyBoard"></div>
+          </section>
+        </div>
+      </section>
+
+      
+      <section id="decksView" class="view">
+        <div class="split two decks-layout">
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Decks 🃏</p>
+                <h3>Deck atual</h3>
+              </div>
+            </div>
+            <div id="decksMeta" class="decks-meta">Carregando informações do jogador...</div>
+            <div id="decksCurrentDeck" class="decks-current"></div>
+          </section>
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Coleção</p>
+                <h3>Cartas do jogador</h3>
+              </div>
+              <div id="decksFilterBar" class="decks-filter-bar" aria-label="Filtro de raridade">
+                <button type="button" class="ghost small active" data-rarity="all">Todas</button>
+                <button type="button" class="ghost small" data-rarity="common">Comum</button>
+                <button type="button" class="ghost small" data-rarity="rare">Rara</button>
+                <button type="button" class="ghost small" data-rarity="epic">Épica</button>
+                <button type="button" class="ghost small" data-rarity="legendary">Lendária</button>
+                <button type="button" class="ghost small" data-rarity="champion">Campeã</button>
+              </div>
+            </div>
+            <div id="decksCardsGrid" class="decks-cards-grid"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="membersView" class="view">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Membros</p>
+              <h3>Elenco do clã</h3>
+            </div>
+            <button class="primary small add-member-btn" id="addMemberBtn"><span class="add-member-icon">＋</span><span>Novo membro</span></button>
+          </div>
+          <div id="membersGrid" class="members-grid"></div>
+        </section>
+      </section>
+
+      <section id="archivedView" class="view">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Arquivados</p>
+              <h3>Histórico de membros arquivados</h3>
+            </div>
+          </div>
+          <div id="archivedBoard"></div>
+        </section>
+      </section>
+
+      <section id="usersView" class="view">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Usuários</p>
+              <h3>Controle de acessos</h3>
+            </div>
+          </div>
+          <div id="usersBoard"></div>
+        </section>
+      </section>
+
+      <section id="vaultView" class="view">
+        <div class="split two">
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Cofre</p>
+                <h3>Backup e restore</h3>
+              </div>
+            </div>
+            <div class="vault-actions">
+              <button class="primary" id="exportBtn">Exportar backup JSON</button>
+              <label class="file-button">
+                <input type="file" id="importInput" accept=".json,application/json">
+                Importar backup
+              </label>
+              <button class="ghost" id="restoreSeedBtn">Restaurar base V5.5.10</button>
+              <button class="ghost danger" id="resetBtn">Limpar app</button>
+            </div>
+            <p class="helper">V5.0.1 com correção forte de cache/PWA para evitar carregamento parcial.</p>
+          </section>
+          <section class="panel glass">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Insights</p>
+                <h3>Radar do clã</h3>
+              </div>
+            </div>
+            <div id="vaultInsights"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+
+
+    <aside id="sideDrawer" class="side-drawer" aria-hidden="true">
+      <div id="drawerBackdrop" class="drawer-backdrop"></div>
+      <div class="drawer-panel glass">
+        <div class="drawer-head">
+          <h3>Menu</h3>
+          <div class="drawer-head-actions">
+          <button id="drawerNotificationBtn" class="profile-menu-btn notification-bell-btn" type="button" aria-label="Notificações">
+            <span>🔔</span>
+            <span id="drawerNotificationBadge" class="notification-badge hidden">0</span>
+          </button>
+          <button id="profileMenuBtn" class="profile-menu-btn" type="button" aria-label="Perfil">
+            <span id="profileAvatar" class="profile-avatar">👤</span>
+          </button>
+        </div>
+        </div>
+        <div id="drawerProfileSummary" class="drawer-profile-summary hidden"></div>
+        <div class="drawer-menu">
+          <button class="drawer-link active" data-view="arenaView">Arena 🏟️</button>
+          <button class="drawer-link" data-view="warAutoView">Guerra Auto 🤖</button>
+          <button class="drawer-link" data-view="warRankingView">Ranking Guerra ⚔️</button>
+          <button class="drawer-link hidden" data-view="membersSyncView">Membros Sync 🔄</button>
+          <button class="drawer-link hidden" data-view="apiLogsView">Logs API 🛰️</button>
+          <button class="drawer-link hidden" data-view="hubLeaderView">Hub dos Líderes 🧑🏼‍💻</button>
+          <button class="drawer-link" data-view="tournamentView">Torneio 🏆</button>
+          <button class="drawer-link" data-view="classificationView">Classificação 📊</button>
+          <button class="drawer-link" data-view="eliteView">Elite 👑</button>
+          <button class="drawer-link" data-view="decksView">Decks 🃏</button>
+          <button class="drawer-link" data-view="membersView">Membros 👥</button>
+          <button class="drawer-link" data-view="archivedView">Arquivados 📦</button>
+          <button class="drawer-link" data-view="usersView">Usuários 🪪</button>
+          <button class="drawer-link" data-view="vaultView">Cofre 🔐</button>
+        </div>
+      </div>
+    </aside>
+    <div id="menuHint" class="menu-swipe-hint hidden" aria-live="polite">
+      <span class="menu-swipe-copy">⟵ Deslize da direita para a esquerda para abrir o menu</span>
+    </div>
+
+    <div id="syncStatus" class="sync-status-card" aria-live="polite">
+      <div class="sync-status-row">
+        <span id="syncIndicator" class="sync-dot online"></span>
+        <span id="syncText" class="sync-status-text">Tempo real ativo</span>
+        <button id="syncRefreshBtn" class="sync-refresh-btn" type="button" aria-label="Atualizar agora">↻</button>
+      </div>
+      <small id="syncTime" class="sync-time-text">Última atualização: --</small>
+    </div>
+
+    <footer class="app-footer">
+      <small>•</small>
+      <small class="creator-credit">Criador: Anderson Pedro • Todos direitos reservado ®️</small>
+      <small class="footer-version">V2.0.9.7 Oficial Auto</small>
+    </footer>
+  
+  <div id="alertComposerModal" class="modal hidden">
+    <div class="modal-card glass narrow alert-composer-modal">
+      <button class="modal-close" data-close-alert-composer>×</button>
+      <div class="stack">
+        <p class="eyebrow">ALERTA INDIVIDUAL</p>
+        <h3 id="alertComposerTitle">Notificar membro</h3>
+        <div id="alertComposerBody" class="alert-template-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notificationCenterModal" class="modal hidden">
+    <div class="modal-card glass narrow notification-center-modal">
+      <button class="modal-close" data-close-notification-center>×</button>
+      <div class="stack">
+        <p class="eyebrow">CENTRAL DE NOTIFICAÇÕES</p>
+        <h3>Mensagens da liderança 🔔</h3>
+        <div id="notificationCenterMeta" class="helper">Sem alertas recentes</div>
+        <div id="notificationCenterList" class="notification-center-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="memberAlertModal" class="modal hidden">
+    <div class="modal-card glass narrow member-alert-modal">
+      <button class="modal-close" data-close-member-alert>×</button>
+      <div class="stack">
+        <p class="eyebrow">ALERTA DA LIDERANÇA</p>
+        <h3 id="memberAlertTitle">Notificação</h3>
+        <p id="memberAlertMessage" class="member-alert-message">Você recebeu uma mensagem.</p>
+        <div id="memberAlertMeta" class="helper">Hub dos Líderes</div>
+        <button type="button" class="primary" data-close-member-alert>Entendi</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+    <button id="backToTopBtn" class="back-to-top" aria-label="Voltar ao topo">↑</button>
+
+  <div id="memberModal" class="modal hidden">
+    <div class="modal-card glass">
+      <button class="modal-close" data-close-modal>×</button>
+      <div id="memberModalBody"></div>
+    </div>
+  </div>
+
+  <div id="goalModal" class="modal hidden">
+    <div class="modal-card glass narrow">
+      <button class="modal-close" data-close-goal>×</button>
+      <form id="goalForm" class="stack">
+        <h3>Metas do mês</h3>
+        <label class="field">
+          <span>Meta de ataques</span>
+          <input type="number" id="goalAttacksInput" min="0" step="1">
+        </label>
+        <label class="field">
+          <span>Meta de torneio</span>
+          <input type="number" id="goalTournamentInput" min="0" step="1">
+        </label>
+        <button class="primary" type="submit">Salvar metas</button>
+      </form>
+    </div>
+  </div>
+
+
+  <div id="vaultAccessModal" class="modal vault-lock-modal hidden" aria-hidden="true">
+    <div class="modal-card glass narrow vault-lock-card">
+      <div class="vault-lock-icon">🔒</div>
+      <h3>Acesso Negado🔒</h3>
+      <p class="helper">Digite a senha para abrir o Cofre.</p>
+      <form id="vaultAccessForm" class="stack">
+        <label class="field">
+          <span>Senha do Cofre</span>
+          <div class="password-field"><input type="password" id="vaultPasswordInput" class="vault-password-input" placeholder="Digite a senha" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="button" class="password-toggle" data-target="vaultPasswordInput" aria-label="Mostrar senha" aria-pressed="false"><span class="icon-eye"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.25" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="icon-eye-off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.58 5.51A9.77 9.77 0 0 1 12 5.25c6 0 9.75 6.75 9.75 6.75a18.61 18.61 0 0 1-3.2 4.08M6.1 6.11C3.8 7.72 2.25 12 2.25 12s3.75 6.75 9.75 6.75a9.9 9.9 0 0 0 4.01-.84M9.88 9.88A3 3 0 0 0 9 12a3 3 0 0 0 3 3c.8 0 1.52-.31 2.05-.83" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button></div>
+        </label>
+        <p id="vaultAccessError" class="vault-access-error hidden">Senha incorreta</p>
+        <div class="actions">
+          <button type="submit" class="primary">Entrar</button>
+          <button type="button" class="ghost" id="vaultAccessCancelBtn">Voltar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <div id="profilePopover" class="modal hidden profile-popover-modal">
+    <div class="modal-card glass narrow profile-popover-card">
+      <div id="profilePopoverHeader" class="profile-popover-header"></div>
+      <div class="profile-popover-actions">
+        <button type="button" class="ghost profile-action-btn" id="editProfileOpenBtn">📝 Editar perfil</button>
+        <button type="button" class="ghost profile-action-btn" id="changePasswordOpenBtn">🔑 Alterar senha</button>
+        <button type="button" class="ghost danger profile-action-btn" id="logoutBtn">🚪 Sair</button>
+      </div>
+    </div>
+  </div>
+  <div id="changePasswordModal" class="modal hidden">
+    <div class="modal-card glass narrow auth-action-card">
+      <button class="modal-close" type="button" data-close-change-password>×</button>
+      <form id="changePasswordForm" class="stack">
+        <h3>Alterar senha</h3>
+        <label class="field"><span>Senha atual</span><div class="password-field"><input type="password" id="currentPasswordInput" autocomplete="current-password" required><button type="button" class="password-toggle" data-target="currentPasswordInput" aria-label="Mostrar senha" aria-pressed="false"><span class="icon-eye"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.25" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="icon-eye-off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.58 5.51A9.77 9.77 0 0 1 12 5.25c6 0 9.75 6.75 9.75 6.75a18.61 18.61 0 0 1-3.2 4.08M6.1 6.11C3.8 7.72 2.25 12 2.25 12s3.75 6.75 9.75 6.75a9.9 9.9 0 0 0 4.01-.84M9.88 9.88A3 3 0 0 0 9 12a3 3 0 0 0 3 3c.8 0 1.52-.31 2.05-.83" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button></div></label>
+        <label class="field"><span>Senha nova</span><div class="password-field"><input type="password" id="newPasswordInput" autocomplete="new-password" required><button type="button" class="password-toggle" data-target="newPasswordInput" aria-label="Mostrar senha" aria-pressed="false"><span class="icon-eye"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.25" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="icon-eye-off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.58 5.51A9.77 9.77 0 0 1 12 5.25c6 0 9.75 6.75 9.75 6.75a18.61 18.61 0 0 1-3.2 4.08M6.1 6.11C3.8 7.72 2.25 12 2.25 12s3.75 6.75 9.75 6.75a9.9 9.9 0 0 0 4.01-.84M9.88 9.88A3 3 0 0 0 9 12a3 3 0 0 0 3 3c.8 0 1.52-.31 2.05-.83" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button></div></label>
+        <label class="field"><span>Confirmar senha</span><div class="password-field"><input type="password" id="confirmPasswordInput" autocomplete="new-password" required><button type="button" class="password-toggle" data-target="confirmPasswordInput" aria-label="Mostrar senha" aria-pressed="false"><span class="icon-eye"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.25" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="icon-eye-off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.58 5.51A9.77 9.77 0 0 1 12 5.25c6 0 9.75 6.75 9.75 6.75a18.61 18.61 0 0 1-3.2 4.08M6.1 6.11C3.8 7.72 2.25 12 2.25 12s3.75 6.75 9.75 6.75a9.9 9.9 0 0 0 4.01-.84M9.88 9.88A3 3 0 0 0 9 12a3 3 0 0 0 3 3c.8 0 1.52-.31 2.05-.83" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button></div></label>
+        <button type="submit" class="primary">Salvar nova senha</button>
+        <p id="changePasswordMessage" class="auth-message hidden"></p>
+      </form>
+    </div>
+  </div>
+  <div id="forgotPasswordModal" class="modal hidden">
+    <div class="modal-card glass narrow auth-action-card">
+      <button class="modal-close" type="button" data-close-forgot-password>×</button>
+      <form id="forgotPasswordForm" class="stack">
+        <h3>Esqueci minha senha</h3>
+        <label class="field"><span>Email</span><input type="email" id="forgotPasswordEmail" autocomplete="email" required></label>
+        <button type="submit" class="primary">Enviar recuperação</button>
+        <p id="forgotPasswordMessage" class="auth-message hidden"></p>
+      </form>
+    </div>
+  </div>
+
+  <div id="userEditModal" class="modal hidden user-edit-modal">
+    <div class="modal-card glass narrow user-edit-card">
+      <button class="modal-close" type="button" data-close-user-edit>×</button>
+      <div id="userEditBody"></div>
+    </div>
+  </div>
+
+
+  <div id="createMemberModal" class="modal hidden">
+    <div class="modal-card glass narrow member-create-card">
+      <button class="modal-close" data-close-create-member>×</button>
+      <form id="createMemberForm" class="stack">
+        <h3>Novo membro</h3>
+        <label class="field">
+          <span>Nome</span>
+          <input type="text" id="createMemberName" placeholder="Digite o nome do jogador" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Nick</span>
+          <input type="text" id="createMemberNick" placeholder="Digite o nick do jogador" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Tag do jogador</span>
+          <input type="text" id="createMemberTag" placeholder="#Q2ABC123" autocapitalize="characters" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Cargo</span>
+          <select id="createMemberRole">
+            <option value="Membro">Membro 👤</option>
+            <option value="Ancião" selected>Ancião 🛡️</option>
+            <option value="Co-líder">Colíder ⚔️</option>
+            <option value="Líder">Líder 👑</option>
+          </select>
+        </label>
+        <div class="actions">
+          <button class="primary" type="submit">Criar membro</button>
+          <button class="ghost" type="button" data-close-create-member>Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <div id="memberActionModal" class="modal hidden">
+    <div class="modal-card glass narrow">
+      <button class="modal-close" type="button" data-close-member-action>×</button>
+      <div id="memberActionBody"></div>
+    </div>
+  </div>
+
+  <canvas id="shareCanvas" width="1080" height="1350" class="hidden"></canvas>
+
+  <script src="data.js"></script>
+  <script src="firebase-config.js"></script>
+  <script type="module" src="firebase-sync.js"></script>
+  <script src="app.js"></script>
+  <script type="module" src="war-service.js"></script>
+  <script type="module" src="auth-ui.js"></script>
+
+  <div id="profileEditModal" class="modal hidden profile-edit-modal">
+    <div class="modal-card glass narrow profile-edit-card">
+      <button class="modal-close" type="button" data-close-profile-edit>×</button>
+      <div class="profile-edit-header">
+        <strong>Editar perfil</strong>
+        <small>Ajuste seus dados de acesso e vínculo com o sistema.</small>
+      </div>
+      <form id="profileEditForm" class="stack profile-edit-form">
+        <label class="field compact">
+          <span>Nome</span>
+          <input type="text" id="profileEditName" required>
+        </label>
+        <label class="field compact">
+          <span>Nick</span>
+          <input type="text" id="profileEditNick" required>
+        </label>
+        <label class="field compact">
+          <span>Cargo</span>
+          <input type="text" id="profileEditRole" disabled>
+        </label>
+        <label class="field compact">
+          <span>Tag do jogador</span>
+          <input type="text" id="profileEditTag" placeholder="#Q2ABC123" autocapitalize="characters" autocomplete="off">
+        </label>
+        <p id="profileEditTagHint" class="helper hidden"></p>
+        <label class="field compact">
+          <span>Email</span>
+          <input type="email" id="profileEditEmail" required>
+        </label>
+        <div class="actions">
+          <button type="submit" class="primary">Salvar perfil</button>
+          <button type="button" class="ghost" data-close-profile-edit>Cancelar</button>
+        </div>
+        <p id="profileEditMessage" class="auth-message hidden"></p>
+      </form>
+    </div>
+  </div>
+
+  <div id="playerTagRequiredModal" class="modal hidden profile-edit-modal tag-required-modal">
+    <div class="modal-card glass narrow profile-edit-card">
+      <div class="profile-edit-header">
+        <strong>Defina sua tag de jogo para continuar.</strong>
+        <small>Ela será usada para integrar seu perfil com a automação da Guerra Auto.</small>
+      </div>
+      <form id="playerTagRequiredForm" class="stack profile-edit-form">
+        <label class="field compact">
+          <span>Tag do jogador</span>
+          <input type="text" id="playerTagRequiredInput" placeholder="#Q2ABC123" autocapitalize="characters" autocomplete="off" required>
+        </label>
+        <div class="actions">
+          <button type="submit" class="primary">Salvar tag</button>
+          <button type="button" class="ghost" id="playerTagRequiredCloseBtn">Depois</button>
+        </div>
+        <p id="playerTagRequiredMessage" class="auth-message hidden"></p>
+      </form>
+    </div>
+  </div>
+
+</body>
+</html>
