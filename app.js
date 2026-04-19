@@ -3,7 +3,7 @@
 const seedData = window.__TOPBRS_SEED__;
 const STORAGE_KEY = 'topbrs-ultra-pwa-v6-1-auth';
 const LEGACY_STORAGE_KEYS = ['topbrs-ultra-pwa-v4-2-elite-arena','topbrs-ultra-pwa-v3-9-safe','topbrs-ultra-pwa-v4-0-1-real-fix','topbrs-ultra-pwa-v4-0-real-fix','topbrs-ultra-pwa-v3-7','topbrs-ultra-pwa-v3-6','topbrs-ultra-pwa-v3-5','topbrs-ultra-pwa-v3-4','topbrs-ultra-pwa-v3-3','topbrs-ultra-pwa-v3-2','topbrs-ultra-pwa-v3-1','topbrs-ultra-pwa-v3-0','topbrs-ultra-pwa-v2-9','topbrs-ultra-pwa-v2-8','topbrs-ultra-pwa-v2-7','topbrs-ultra-pwa-v2-4','topbrs-ultra-pwa-v2-3','topbrs-ultra-pwa-v2-2','topbrs-ultra-pwa-v2'];
-const appVersion = 'V2.0.9.9 Oficial Auto';
+const appVersion = 'V2.1.0 Oficial Auto';
 const WAR_AUTO_SANDBOX = true;
 const WAR_AUTO_REALTIME_READONLY = true;
 const monthLabels = {
@@ -1208,6 +1208,7 @@ function renderHubMonthWeekControls(){
 }
 function renderHubLeaderView(){
   if(!ui.hubLeaderSummary) return;
+  renderHubMonthWeekControls();
   const {dayInfo, weeklyRows, month, week} = buildHubContext();
   const high = weeklyRows.filter(r => r.riskTone === 'high').length;
   const medium = weeklyRows.filter(r => r.riskTone === 'medium').length;
@@ -1314,15 +1315,36 @@ function updateNotificationBadge(){
   ui.drawerNotificationBtn.classList.toggle('has-alert', unread > 0);
 }
 
-function openAlertComposer(member={}){
+
+function getLeadershipTargetOptions(selectedKey=''){
+  return activeMembers().map(member => {
+    const value = normalizeAlertTag(member.playerTag || member.tag || '') || normalizeAlertName(member.name || member.nick || '');
+    const isSelected = String(value) === String(selectedKey || '');
+    return `<option value="${esc(value)}" ${isSelected ? 'selected' : ''}>${esc(member.name || 'Membro')}</option>`;
+  }).join('');
+}
+function resolveLeadershipTargetMember(memberKey=''){
+  const normalized = String(memberKey || '');
+  return activeMembers().find(member => {
+    const tagKey = normalizeAlertTag(member.playerTag || member.tag || '');
+    const nameKey = normalizeAlertName(member.name || member.nick || '');
+    return normalized === tagKey || normalized === nameKey;
+  }) || null;
+}
+function refreshLeadershipNoticeComposer(){
+  const scope = String(document.getElementById('leadershipNoticeScope')?.value || 'global');
+  const targetField = document.getElementById('leadershipTargetField');
+  if(targetField) targetField.style.display = scope === 'member' ? 'block' : 'none';
+}
+function openAlertComposer(member={}, options={}){
   if(!ui.alertComposerModal || !ui.alertComposerBody || !ui.alertComposerTitle) return;
-  ui.alertComposerTitle.textContent = `Notificar ${member.name || 'membro'}`;
+  const defaultScope = String(options.defaultScope || 'member');
+  const selectedKey = normalizeAlertTag(member.playerTag || member.tag || '') || normalizeAlertName(member.name || member.nick || '');
+  ui.alertComposerTitle.textContent = options.leadershipMode ? 'Aviso da liderança' : `Notificar ${member.name || 'membro'}`;
   ui.alertComposerModal.dataset.member = JSON.stringify({ name: member.name || '', playerTag: member.playerTag || member.tag || '' });
+  ui.alertComposerModal.dataset.scope = defaultScope;
   ui.alertComposerBody.innerHTML = `
-    <div class="alert-mode-row">
-      <button type="button" class="mini-chip-btn active" data-alert-scope="individual">Individual</button>
-      <button type="button" class="mini-chip-btn" data-alert-scope="global">Global</button>
-    </div>
+    ${options.leadershipMode ? '' : `
     <div class="alert-template-list">
       ${Object.values(SMART_ALERT_TEMPLATES).map(item => `
         <button type="button" class="alert-template-btn ${item.tone}" data-alert-template="${esc(item.key)}">
@@ -1330,31 +1352,38 @@ function openAlertComposer(member={}){
           <span>${esc(item.message)}</span>
         </button>
       `).join('')}
-      <button type="button" class="alert-template-btn blue" data-alert-template="leadership_notice">
-        <strong>📢 Aviso da liderança</strong>
-        <span>Mensagem livre com envio individual ou global.</span>
-      </button>
     </div>
-    <label class="field" id="leadershipNoticeField" style="display:none">
+    <div class="hub-divider"></div>`}
+    <label class="field">
+      <span>Destino</span>
+      <select id="leadershipNoticeScope" data-leadership-scope>
+        <option value="member" ${defaultScope === 'member' ? 'selected' : ''}>Membro</option>
+        <option value="global" ${defaultScope === 'global' ? 'selected' : ''}>Global</option>
+      </select>
+    </label>
+    <label class="field" id="leadershipTargetField" style="display:${defaultScope === 'member' ? 'block' : 'none'}">
+      <span>Selecionar membro</span>
+      <select id="leadershipTargetMember">${getLeadershipTargetOptions(selectedKey)}</select>
+    </label>
+    <label class="field">
       <span>Mensagem personalizada</span>
       <textarea id="leadershipNoticeInput" rows="4" placeholder="Digite o aviso da liderança"></textarea>
     </label>
-    <button type="button" class="primary" id="sendLeadershipNoticeBtn" style="display:none">Enviar aviso</button>
+    <button type="button" class="primary" id="sendLeadershipNoticeBtn">Enviar aviso</button>
   `;
-  ui.alertComposerModal.dataset.scope = 'individual';
   ui.alertComposerModal.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
+  refreshLeadershipNoticeComposer();
 }
+
 function closeAlertComposer(){
   if(!ui.alertComposerModal) return;
   ui.alertComposerModal.classList.add('hidden');
   document.body.style.overflow = '';
 }
 
-function getAlertScope(){
-  return String(ui.alertComposerModal?.dataset.scope || 'individual');
-}
-async function sendLeadershipNotice(member={}, customMessage='', scope='individual'){
+
+async function sendLeadershipNotice(member={}, customMessage='', scope='member', selectedMemberKey=''){
   const message = String(customMessage || '').trim();
   if(!message) { showToast('Digite uma mensagem para o aviso.', 'error'); return false; }
   try{
@@ -1364,19 +1393,24 @@ async function sendLeadershipNotice(member={}, customMessage='', scope='individu
     if(!firebase?.db || !api?.addDoc) throw new Error('Firestore indisponível');
     let recipientKeys = [];
     let memberName = member.name || 'Clã';
+    let memberTag = normalizeAlertTag(member.playerTag || member.tag || '');
     if(scope === 'global'){
       const setKeys = new Set();
       activeMembers().forEach(m => buildAlertRecipientKeys(m).forEach(k => setKeys.add(k)));
       recipientKeys = Array.from(setKeys);
       memberName = 'Clã TopBRS';
+      memberTag = '';
     }else{
-      recipientKeys = buildAlertRecipientKeys(member);
+      const target = resolveLeadershipTargetMember(selectedMemberKey) || member;
+      recipientKeys = buildAlertRecipientKeys(target);
+      memberName = target?.name || member.name || 'Membro';
+      memberTag = normalizeAlertTag(target?.playerTag || target?.tag || '');
     }
     if(!recipientKeys.length) throw new Error('Sem destinatário');
     await api.addDoc(api.collection(firebase.db, 'topbrs_notifications'), {
       recipientKeys,
       memberName,
-      playerTag: normalizeAlertTag(member.playerTag || member.tag || ''),
+      playerTag: memberTag,
       title: '📢 Aviso da liderança',
       message,
       tone: 'blue',
@@ -1393,6 +1427,7 @@ async function sendLeadershipNotice(member={}, customMessage='', scope='individu
     return false;
   }
 }
+
 function getAutoAlertRecommendation(item){
   if(item.totalWeek === 16) return 'excellent';
   if(item.totalWeek >= 12) return 'good';
@@ -1663,9 +1698,6 @@ function renderHubDecisionView(){
   }
   runAutomaticAlerts(weeklyRows).catch(err => console.warn('runAutomaticAlerts', err));
   ui.hubDecisionBoard.innerHTML = `
-    <div class="hub-global-action">
-      <button type="button" class="primary small" data-open-global-notice="1">📢 Aviso da liderança</button>
-    </div>
     ${weeklyRows.map(item => `
       <article class="hub-row glass">
         <div class="hub-row-head">
@@ -1696,9 +1728,6 @@ function renderHubClanView(){
   const monthGoal = state.goals?.[month]?.attacks || 1200;
   const weekTotal = weeklyRows.reduce((acc, item) => acc + item.totalWeek, 0);
   const weekGoal = activeMembers().length * 16;
-  if(ui.hubClanMeta){
-    ui.hubClanMeta.textContent = `${monthLabel(month)} • S${week} • visão do mês + acompanhamento semanal.`;
-  }
   ui.hubClanSummary.innerHTML = `
     <article class="hub-card glass"><small>Ataques do mês</small><strong>${ctx.attackTotalClan}</strong><span>Meta ${monthGoal}</span></article>
     <article class="hub-card glass"><small>Ataques da semana</small><strong>${weekTotal}</strong><span>Meta ${weekGoal}</span></article>
@@ -4297,15 +4326,7 @@ function bind(){
     }
     const openGlobalNoticeBtn = e.target.closest('[data-open-global-notice]');
     if(openGlobalNoticeBtn){
-      openAlertComposer({ name:'Clã TopBRS', playerTag:'' });
-      ui.alertComposerModal.dataset.scope = 'global';
-      ui.alertComposerBody.querySelectorAll('[data-alert-scope]').forEach(btn => btn.classList.toggle('active', btn.dataset.alertScope === 'global'));
-      return;
-    }
-    const scopeBtn = e.target.closest('[data-alert-scope]');
-    if(scopeBtn && ui.alertComposerModal){
-      ui.alertComposerModal.dataset.scope = scopeBtn.dataset.alertScope || 'individual';
-      ui.alertComposerBody.querySelectorAll('[data-alert-scope]').forEach(btn => btn.classList.toggle('active', btn === scopeBtn));
+      openAlertComposer({ name:'Clã TopBRS', playerTag:'' }, { leadershipMode:true, defaultScope:'global' });
       return;
     }
     const templateBtn = e.target.closest('[data-alert-template]');
@@ -4313,13 +4334,6 @@ function bind(){
       (async() => {
         try{
           const member = JSON.parse(ui.alertComposerModal?.dataset.member || '{}');
-          if(templateBtn.dataset.alertTemplate === 'leadership_notice'){
-            const field = document.getElementById('leadershipNoticeField');
-            const sendBtn = document.getElementById('sendLeadershipNoticeBtn');
-            if(field) field.style.display = 'block';
-            if(sendBtn) sendBtn.style.display = 'inline-flex';
-            return;
-          }
           const ok = await sendSmartAlert(member, templateBtn.dataset.alertTemplate || 'observation');
           if(ok) closeAlertComposer();
         }catch(err){ console.warn('template alert', err); }
@@ -4332,7 +4346,9 @@ function bind(){
         try{
           const member = JSON.parse(ui.alertComposerModal?.dataset.member || '{}');
           const message = document.getElementById('leadershipNoticeInput')?.value || '';
-          const ok = await sendLeadershipNotice(member, message, getAlertScope());
+          const scope = document.getElementById('leadershipNoticeScope')?.value || 'member';
+          const targetMember = document.getElementById('leadershipTargetMember')?.value || '';
+          const ok = await sendLeadershipNotice(member, message, scope, targetMember);
           if(ok) closeAlertComposer();
         }catch(err){ console.warn('leadership notice send', err); }
       })();
@@ -4525,6 +4541,11 @@ function bind(){
   ui.drawerBackdrop?.addEventListener('click', closeDrawer);
   document.getElementById('syncRefreshBtn')?.addEventListener('click', manualRefreshSync);
   document.body.addEventListener('change', e => {
+    if(e.target.matches('[data-leadership-scope]')){
+      refreshLeadershipNoticeComposer();
+      return;
+    }
+
     if(e.target.matches('[data-position-input]')){
       updatePosition(e.target.dataset.positionInput, e.target.value);
     }

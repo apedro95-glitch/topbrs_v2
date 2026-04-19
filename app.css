@@ -4483,3 +4483,93 @@ button{transition:transform .16s ease, box-shadow .18s ease, filter .18s ease}bu
 .mini-chip-btn{padding:8px 12px;border-radius:999px;border:1px solid rgba(132,150,255,.18);background:rgba(255,255,255,.04);font-weight:700;}
 .mini-chip-btn.active{background:linear-gradient(180deg, rgba(95,108,255,.28), rgba(95,108,255,.16));border-color:rgba(129,151,255,.32);}
 .alert-template-btn textarea,#leadershipNoticeInput{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(132,150,255,.16);border-radius:16px;padding:12px;color:var(--text);}
+
+.hub-master-controls{
+  margin-top:12px;
+  margin-bottom:6px;
+}
+.hub-master-controls .hero-picker{
+  min-width:0;
+}
+.hub-master-controls .hero-chipbar{
+  overflow:auto hidden;
+  padding-bottom:2px;
+}
+.hub-row{
+  overflow:hidden;
+}
+.hub-row-head{
+  align-items:flex-start;
+  flex-wrap:wrap;
+}
+.hub-row-head strong{
+  flex:1 1 180px;
+  min-width:0;
+  word-break:break-word;
+}
+.hub-row-actions{
+  flex:0 1 auto;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.hub-row .chips{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  align-items:stretch;
+}
+.hub-row .chip{
+  width:100%;
+  min-height:52px;
+  justify-content:center;
+  text-align:center;
+  white-space:normal;
+  line-height:1.15;
+  padding:10px 12px;
+}
+.hub-global-action{
+  display:none;
+}
+.hub-divider{
+  height:1px;
+  background:rgba(255,255,255,.08);
+  margin:4px 0 2px;
+}
+.alert-composer-modal{
+  max-width:520px;
+}
+.alert-composer-modal .stack{
+  gap:12px;
+}
+.alert-composer-modal textarea,
+.alert-composer-modal select{
+  width:100%;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(132,150,255,.16);
+  border-radius:16px;
+  padding:12px;
+  color:var(--text);
+}
+.alert-composer-modal select{
+  min-height:48px;
+}
+#hubClanView #hubClanSummary{
+  margin-top:0;
+}
+#hubClanView #hubClanBoard{
+  margin-top:14px;
+}
+@media (max-width: 640px){
+  .hub-row{
+    padding:14px;
+  }
+  .hub-row .chips{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .hub-row-actions{
+    width:100%;
+    justify-content:flex-start;
+  }
+}
+
+#hubClanMeta{display:none !important;}

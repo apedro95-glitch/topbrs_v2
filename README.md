@@ -1,6 +1,6 @@
 # TOP BRS CUP
 
-Versão atual: V2.0.9.9 Oficial Auto
+Versão atual: V2.1.0 Oficial Auto
 
 - Guerra Auto lendo war_history
 - Ranking Guerra com PTS por fame e ATK por ataques
@@ -8,7 +8,7 @@ Versão atual: V2.0.9.9 Oficial Auto
 - Popup 'O que há de novo?'
 
 
-## V2.0.9.9 Oficial Auto
+## V2.1.0 Oficial Auto
 - Pacote PWA premium aplicado.
 - Novo conjunto de ícones iOS/Android com melhor preenchimento visual.
 - apple-touch-icon, favicon e manifest padronizados.
