@@ -6,3 +6,10 @@ Versão atual: V2.0.9.6 Oficial Auto
 - Ranking Guerra com PTS por fame e ATK por ataques
 - Manual oculta
 - Popup 'O que há de novo?'
+
+
+## V2.0.9.8
+- Pacote PWA premium aplicado.
+- Novo conjunto de ícones iOS/Android com melhor preenchimento visual.
+- apple-touch-icon, favicon e manifest padronizados.
+- Cache do service worker atualizado para forçar ícone novo.

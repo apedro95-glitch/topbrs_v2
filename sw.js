@@ -1,5 +1,5 @@
-const CACHE = 'topbrs-ultra-pwa-v6424-feedback-profile';
-const CORE = ['./','./index.html','./app.css','./app.js','./data.js','./manifest.json','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png','./icons/icon-180.png'];
+const CACHE = 'topbrs-premium-pwa-v2098-icons';
+const CORE = ['./','./index.html','./app.css','./app.js','./data.js','./manifest.json','./icon-1024.png','./apple-touch-icon.png','./icons/icon-180.png','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-1024.png','./icons/icon-maskable-512.png','./icons/favicon.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)).then(() => self.skipWaiting()));
 });
@@ -10,7 +10,7 @@ self.addEventListener('activate', event => {
     await self.clients.claim();
     const clients = await self.clients.matchAll({type:'window', includeUncontrolled:true});
     for (const client of clients) {
-      client.postMessage({type:'TOPBRS_SW_READY', version:'6.4.24'});
+      client.postMessage({type:'TOPBRS_SW_READY', version:'2.0.9.8'});
     }
   })());
 });

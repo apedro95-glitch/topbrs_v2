@@ -4,11 +4,17 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#050814",
-  "theme_color": "#0b1020",
-  "description": "Painel premium do clã com Guerra Auto, Decks reais, feedback visual e integração por API.",
+  "background_color": "#08122b",
+  "theme_color": "#08122b",
+  "description": "Painel premium do clã com Guerra Auto, alertas em tempo real e experiência PWA refinada.",
   "orientation": "portrait-primary",
   "icons": [
+    {
+      "src": "icons/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "icons/icon-192.png",
       "sizes": "192x192",
@@ -18,6 +24,12 @@
     {
       "src": "icons/icon-512.png",
       "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-1024.png",
+      "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any"
     },
